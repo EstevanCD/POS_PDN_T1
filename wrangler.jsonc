@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "pos-pdn-t1",
+  "compatibility_date": "2026-04-04",
+  "assets": {
+    "directory": "./dist/pos-cafeteria/browser",
+    "not_found_handling": "single-page-application"
+  }
+}
