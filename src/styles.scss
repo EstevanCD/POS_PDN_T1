@@ -1,0 +1,98 @@
+/* ==========================================================================
+   DESIGN TOKENS GLOBALES - Sistema POS Cafetería
+   ========================================================================== */
+:root {
+  /* Paleta - tema cafetería (tonos café/crema) */
+  --color-primary: #6F4E37;
+  --color-primary-dark: #4A3225;
+  --color-primary-light: #A9765E;
+  --color-accent: #D4A24C;
+  --color-success: #2E7D32;
+  --color-danger: #C62828;
+  --color-warning: #ED6C02;
+  --color-info: #0277BD;
+
+  --color-bg: #FAF6F1;
+  --color-surface: #FFFFFF;
+  --color-surface-alt: #F3ECE4;
+  --color-border: #E5DCD1;
+  --color-text: #2B211B;
+  --color-text-muted: #7A6C60;
+  --color-text-inverse: #FFFFFF;
+
+  /* Tipografía */
+  --font-heading: 'Poppins', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.5rem;
+  --fs-2xl: 2rem;
+
+  /* Espaciado */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  /* Radios y sombras */
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 999px;
+  --shadow-sm: 0 1px 3px rgba(43, 33, 27, 0.08);
+  --shadow-md: 0 4px 12px rgba(43, 33, 27, 0.10);
+  --shadow-lg: 0 10px 30px rgba(43, 33, 27, 0.14);
+
+  /* Layout */
+  --header-height: 64px;
+  --sidebar-width: 240px;
+  --sidebar-width-collapsed: 76px;
+  --bottom-nav-height: 64px;
+
+  /* Breakpoints de referencia (usados en comentarios) */
+  /* mobile: <640px | tablet: 640-1024px | desktop: >1024px */
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-heading); margin: 0; color: var(--color-text); }
+p { margin: 0; }
+
+button, input, select, textarea { font-family: inherit; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+
+.container-page {
+  padding: var(--space-5);
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .container-page { padding: var(--space-3); }
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip: rect(0,0,0,0); white-space: nowrap;
+}

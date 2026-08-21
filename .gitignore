@@ -1,0 +1,9 @@
+/node_modules
+/dist
+/out-tsc
+/.angular
+.DS_Store
+*.log
+/src/environments/environment.local.ts
+README.md
+pos-cafeteria\README.md
