@@ -5,61 +5,155 @@ import { Profile } from '../models/profile.model';
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  /** Señal reactiva con la sesión actual (null = no autenticado) */
+  /** Sesión actual */
   session = signal<Session | null>(null);
-  /** Perfil extendido (rol, nombre) desde la tabla `profiles` */
+
+  /** Perfil del usuario autenticado */
   profile = signal<Profile | null>(null);
+
+  /** Indica si todavía estamos restaurando la sesión */
   loading = signal<boolean>(true);
 
+  /**
+   * Promise que se resuelve cuando Supabase termina
+   * de restaurar la sesión inicial.
+   */
+  private initializationPromise: Promise<void>;
+
   constructor(private supabase: SupabaseService) {
-    this.init();
+    this.initializationPromise = this.init();
   }
 
-  private async init() {
-    const { data } = await this.supabase.client.auth.getSession();
-    this.session.set(data.session);
-    if (data.session) await this.loadProfile(data.session.user.id);
-    this.loading.set(false);
+  /**
+   * Inicializa la autenticación y restaura la sesión
+   * almacenada por Supabase.
+   */
+  private async init(): Promise<void> {
+    try {
+      const { data, error } = await this.supabase.client.auth.getSession();
 
-    this.supabase.client.auth.onAuthStateChange(async (_event, session) => {
-      this.session.set(session);
-      if (session) {
-        await this.loadProfile(session.user.id);
-      } else {
-        this.profile.set(null);
+      if (error) {
+        console.error('Error recuperando sesión:', error);
       }
-    });
+
+      this.session.set(data.session);
+
+      if (data.session) {
+        await this.loadProfile(data.session.user.id);
+      }
+
+      /**
+       * Escuchamos cambios posteriores de autenticación:
+       * login, logout, refresh token, etc.
+       */
+      this.supabase.client.auth.onAuthStateChange((event, session) => {
+        this.session.set(session);
+
+        if (session) {
+          /**
+           * No hacemos await aquí para evitar bloquear
+           * el callback de Supabase.
+           */
+          void this.loadProfile(session.user.id);
+        } else {
+          this.profile.set(null);
+        }
+
+        console.log('Auth event:', event);
+      });
+    } catch (error) {
+      console.error('Error inicializando AuthService:', error);
+      this.session.set(null);
+      this.profile.set(null);
+    } finally {
+      this.loading.set(false);
+    }
   }
 
-  private async loadProfile(userId: string) {
-    const { data } = await this.supabase.client
+  /**
+   * Permite que un guard o componente espere a que
+   * la sesión inicial esté completamente restaurada.
+   */
+  async waitUntilInitialized(): Promise<void> {
+    await this.initializationPromise;
+  }
+
+  /**
+   * Carga el perfil extendido del usuario.
+   */
+  private async loadProfile(userId: string): Promise<void> {
+    const { data, error } = await this.supabase.client
       .from('profiles')
       .select('*')
       .eq('id', userId)
       .single();
-    if (data) this.profile.set(data as Profile);
+
+    if (error) {
+      console.error('Error cargando perfil:', error);
+      this.profile.set(null);
+      return;
+    }
+
+    if (data) {
+      this.profile.set(data as Profile);
+    }
   }
 
+  /**
+   * Login con correo y contraseña.
+   */
   async signInWithPassword(email: string, password: string) {
-    const { data, error } = await this.supabase.client.auth.signInWithPassword({ email, password });
-    if (!error && data.session) await this.loadProfile(data.session.user.id);
+    const { data, error } =
+      await this.supabase.client.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+    if (!error && data.session) {
+      this.session.set(data.session);
+      await this.loadProfile(data.session.user.id);
+    }
+
     return { data, error };
   }
 
-  async signUp(email: string, password: string, fullName: string) {
+  /**
+   * Registro de usuario.
+   */
+  async signUp(
+    email: string,
+    password: string,
+    fullName: string
+  ) {
     return this.supabase.client.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
     });
   }
 
-  async signOut() {
-    await this.supabase.client.auth.signOut();
+  /**
+   * Cierre de sesión.
+   */
+  async signOut(): Promise<void> {
+    const { error } = await this.supabase.client.auth.signOut();
+
+    if (error) {
+      console.error('Error cerrando sesión:', error);
+      return;
+    }
+
     this.session.set(null);
     this.profile.set(null);
   }
 
+  /**
+   * Comprueba si existe una sesión válida.
+   */
   isAuthenticated(): boolean {
     return !!this.session();
   }
