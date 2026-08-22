@@ -41,18 +41,11 @@ import { buildTicketText, buildTicketHtml, printTicket, whatsappShareUrl, emailS
           <label>Teléfono WhatsApp del cliente (opcional, con código de país)</label>
           <input type="text" [(ngModel)]="phone" name="phone" placeholder="57300..." />
         </div>
-        <div class="ticket-modal__field">
-          <label>Email del cliente (opcional)</label>
-          <input type="text" [(ngModel)]="email" name="email" placeholder="cliente@correo.com" />
-        </div>
 
         <div class="ticket-modal__actions">
           <app-button variant="outline" [full]="true" (clicked)="print()">🖨️ Imprimir</app-button>
           <a [href]="whatsappUrl()" target="_blank" class="ticket-modal__link">
             <app-button variant="outline" [full]="true">📲 WhatsApp</app-button>
-          </a>
-          <a [href]="emailUrl()" class="ticket-modal__link">
-            <app-button variant="outline" [full]="true">✉️ Email</app-button>
           </a>
         </div>
 
@@ -82,7 +75,6 @@ export class TicketModalComponent {
   @Output() close = new EventEmitter<void>();
 
   phone = '';
-  email = '';
 
   constructor(public settings: SettingsService) { }
 
@@ -92,14 +84,6 @@ export class TicketModalComponent {
 
   whatsappUrl(): string {
     return whatsappShareUrl(buildTicketText(this.order, this.settings.cafeName(), this.fmt), this.phone || undefined);
-  }
-
-  emailUrl(): string {
-    return emailShareUrl(
-      `Tu recibo de ${this.settings.cafeName()}`,
-      buildTicketText(this.order, this.settings.cafeName(), this.fmt),
-      this.email || undefined
-    );
   }
 
   private fmt = (n: number): string => {

@@ -30,24 +30,6 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
       color: var(--color-text-inverse);
     }
     .nav-item__icon { font-size: 1.2rem; }
-
-    @media (max-width: 768px) {
-      .nav-item {
-        flex-direction: column;
-        gap: 2px;
-        padding: var(--space-1) var(--space-1);
-        font-size: 10px;
-        text-align: center;
-        flex: 1 1 0;
-        min-width: 0;
-      }
-      .nav-item__label {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        max-width: 100%;
-      }
-    }
   `],
 })
 export class NavItemComponent {

@@ -1,21 +1,36 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Order, PaymentMethod, PaymentSplit } from '../../core/models/order.model';
+import { Order, OrderItem, PaymentMethod, PaymentSplit } from '../../core/models/order.model';
+import { Product, Category } from '../../core/models/product.model';
 import { OrderService } from '../../core/services/order.service';
+import { ProductService } from '../../core/services/product.service';
 import { LoyaltyService } from '../../core/services/loyalty.service';
 import { SettingsService } from '../../core/services/settings.service';
 import { CardComponent } from '../../shared/atoms/card/card.component';
 import { ButtonComponent } from '../../shared/atoms/button/button.component';
 import { SpinnerComponent } from '../../shared/atoms/spinner/spinner.component';
 import { AppCurrencyPipe } from '../../shared/pipes/app-currency.pipe';
-//import { LabelPipe } from '../../shared/pipes/label.pipe';
 import { TicketModalComponent } from '../../shared/organisms/ticket-modal/ticket-modal.component';
+import { ProductGridComponent } from '../../shared/organisms/product-grid/product-grid.component';
+import { CategoryTabsComponent } from '../../shared/organisms/category-tabs/category-tabs.component';
+import { SearchBarComponent } from '../../shared/molecules/search-bar/search-bar.component';
 
 @Component({
   selector: 'app-active-orders-page',
   standalone: true,
-  imports: [CommonModule, FormsModule, CardComponent, ButtonComponent, SpinnerComponent, AppCurrencyPipe, TicketModalComponent],
+  imports: [
+    CommonModule,
+    FormsModule,
+    CardComponent,
+    ButtonComponent,
+    SpinnerComponent,
+    AppCurrencyPipe,
+    TicketModalComponent,
+    ProductGridComponent,
+    CategoryTabsComponent,
+    SearchBarComponent,
+  ],
   template: `
     <div class="active-orders container-page">
       <h2>🕐 Órdenes activas</h2>
@@ -44,11 +59,52 @@ import { TicketModalComponent } from '../../shared/organisms/ticket-modal/ticket
             <span>{{ order.total | appCurrency }}</span>
           </div>
 
+          <app-button variant="outline" [full]="true" (clicked)="openAddItems(order)">➕ Agregar productos</app-button>
           <app-button [full]="true" (clicked)="openCharge(order)">💳 Cobrar</app-button>
           <app-button variant="danger" size="sm" [full]="true" (clicked)="cancel(order)">Cancelar orden</app-button>
         </app-card>
 
         <p class="active-orders__empty" *ngIf="!orders().length">No hay órdenes activas en este momento.</p>
+      </div>
+    </div>
+
+    <!-- Modal: agregar más productos a la mesa -->
+    <div class="add-items-modal__backdrop" *ngIf="addingToOrder()" (click)="closeAddItems()">
+      <div class="add-items-modal" (click)="$event.stopPropagation()">
+        <h3>➕ Agregar a {{ addingToOrder()?.table_number || 'Sin mesa' }} · #{{ addingToOrder()?.order_number }}</h3>
+
+        <app-search-bar placeholder="Buscar producto..." [term]="search()" (termChange)="search.set($event)"></app-search-bar>
+        <app-category-tabs
+          [categories]="categories()"
+          [selected]="selectedCategory()"
+          (selectedChange)="selectedCategory.set($event)"
+        ></app-category-tabs>
+
+        <div class="add-items-modal__products">
+          <app-product-grid [products]="filteredProducts()" (add)="addToPending($event)"></app-product-grid>
+        </div>
+
+        <div class="add-items-modal__pending" *ngIf="pendingItems().length">
+          <div class="add-items-modal__pending-row" *ngFor="let item of pendingItems()">
+            <span>{{ item.quantity }}× {{ item.product_name }}</span>
+            <span>{{ item.subtotal | appCurrency }}</span>
+          </div>
+          <div class="add-items-modal__pending-total">
+            <span>Total a agregar</span>
+            <span>{{ pendingTotal() | appCurrency }}</span>
+          </div>
+        </div>
+
+        <app-button
+          [full]="true"
+          size="lg"
+          [loading]="savingItems()"
+          [disabled]="!pendingItems().length"
+          (clicked)="confirmAddItems()"
+        >
+          Agregar a la orden
+        </app-button>
+        <app-button variant="ghost" [full]="true" (clicked)="closeAddItems()">Cancelar</app-button>
       </div>
     </div>
 
@@ -130,7 +186,25 @@ import { TicketModalComponent } from '../../shared/organisms/ticket-modal/ticket
     .active-orders__total { display: flex; justify-content: space-between; font-weight: 700; font-size: var(--fs-lg); border-top: 1px dashed var(--color-border); padding-top: var(--space-2); }
     .active-orders__empty { color: var(--color-text-muted); grid-column: 1 / -1; text-align: center; padding: var(--space-8); }
 
-    .charge-modal__backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; padding: var(--space-4); }
+    .add-items-modal__backdrop, .charge-modal__backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; padding: var(--space-4);
+    }
+    .add-items-modal {
+      background: var(--color-surface); border-radius: var(--radius-lg); padding: var(--space-5);
+      max-width: 640px; width: 100%; max-height: 90vh; overflow-y: auto;
+      display: flex; flex-direction: column; gap: var(--space-3);
+    }
+    .add-items-modal h3 { margin-bottom: var(--space-1); }
+    .add-items-modal__products { max-height: 320px; overflow-y: auto; padding: var(--space-1); }
+    .add-items-modal__pending {
+      background: var(--color-surface-alt); border-radius: var(--radius-md); padding: var(--space-3);
+    }
+    .add-items-modal__pending-row { display: flex; justify-content: space-between; font-size: var(--fs-sm); padding: 2px 0; }
+    .add-items-modal__pending-total {
+      display: flex; justify-content: space-between; font-weight: 700; border-top: 1px dashed var(--color-border);
+      margin-top: var(--space-2); padding-top: var(--space-2);
+    }
+
     .charge-modal { background: var(--color-surface); border-radius: var(--radius-lg); padding: var(--space-5); max-width: 400px; width: 100%; max-height: 90vh; overflow-y: auto; }
     .charge-modal h3 { margin-bottom: var(--space-3); }
     .charge-modal__total { display: flex; justify-content: space-between; font-weight: 700; font-size: var(--fs-lg); margin-bottom: var(--space-4); }
@@ -147,8 +221,8 @@ import { TicketModalComponent } from '../../shared/organisms/ticket-modal/ticket
     .charge-modal__payment-btn--active { border-color: var(--color-primary); background: var(--color-primary); color: var(--color-text-inverse); }
 
     .charge-modal__splits { margin-bottom: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
-    .charge-modal__split-row { display: grid; grid-template-columns: 1.2fr 1fr auto; gap: var(--space-2); align-items: center; }
-    .charge-modal__split-row select, .charge-modal__split-row input { border: 1.5px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2); font-size: var(--fs-sm); background: var(--color-surface); }
+    .charge-modal__split-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: var(--space-2); align-items: center; }
+    .charge-modal__split-row select, .charge-modal__split-row input { min-width: 0; width: 100%; box-sizing: border-box; border: 1.5px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2); font-size: var(--fs-sm); background: var(--color-surface); }
     .charge-modal__split-remove { border: none; background: transparent; color: var(--color-danger); cursor: pointer; font-size: 1rem; }
     .charge-modal__split-add { border: 1.5px dashed var(--color-border); background: transparent; border-radius: var(--radius-md); padding: var(--space-2); font-size: var(--fs-xs); font-weight: 600; color: var(--color-text-muted); cursor: pointer; }
     .charge-modal__split-balance { display: flex; justify-content: space-between; font-size: var(--fs-xs); font-weight: 600; color: var(--color-success); padding: var(--space-1) 0; }
@@ -161,6 +235,15 @@ export class ActiveOrdersPage implements OnInit {
   chargingId = signal<string | null>(null);
   chargingOrder = signal<Order | null>(null);
   lastChargedOrder = signal<Order | null>(null);
+
+  // Agregar productos a una mesa ya abierta
+  addingToOrder = signal<Order | null>(null);
+  products = signal<Product[]>([]);
+  categories = signal<Category[]>([]);
+  search = signal('');
+  selectedCategory = signal<string | null>(null);
+  pendingItems = signal<OrderItem[]>([]);
+  savingItems = signal(false);
 
   customerPhone = '';
   splitMode = false;
@@ -175,12 +258,19 @@ export class ActiveOrdersPage implements OnInit {
 
   constructor(
     private orderService: OrderService,
+    private productService: ProductService,
     private loyaltyService: LoyaltyService,
     private settings: SettingsService
   ) {}
 
   async ngOnInit() {
     await this.load();
+    const [products, categories] = await Promise.all([
+      this.productService.getActiveProducts(),
+      this.productService.getCategories(),
+    ]);
+    this.products.set(products);
+    this.categories.set(categories);
   }
 
   async load() {
@@ -189,6 +279,68 @@ export class ActiveOrdersPage implements OnInit {
       this.orders.set(await this.orderService.getOpenOrders());
     } finally {
       this.loading.set(false);
+    }
+  }
+
+  filteredProducts(): Product[] {
+    const term = this.search().toLowerCase().trim();
+    return this.products().filter((p) => {
+      const matchesCategory = !this.selectedCategory() || p.category_id === this.selectedCategory();
+      const matchesTerm = !term || p.name.toLowerCase().includes(term);
+      return matchesCategory && matchesTerm;
+    });
+  }
+
+  openAddItems(order: Order) {
+    this.addingToOrder.set(order);
+    this.pendingItems.set([]);
+    this.search.set('');
+    this.selectedCategory.set(null);
+  }
+
+  closeAddItems() {
+    this.addingToOrder.set(null);
+    this.pendingItems.set([]);
+  }
+
+  addToPending(product: Product) {
+    const existing = this.pendingItems().find((i) => i.product_id === product.id);
+    if (existing) {
+      this.pendingItems.update((items) =>
+        items.map((i) =>
+          i.product_id === product.id
+            ? { ...i, quantity: i.quantity + 1, subtotal: i.unit_price * (i.quantity + 1) }
+            : i
+        )
+      );
+      return;
+    }
+    this.pendingItems.update((items) => [
+      ...items,
+      {
+        product_id: product.id,
+        product_name: product.name,
+        unit_price: product.price,
+        quantity: 1,
+        subtotal: product.price,
+      },
+    ]);
+  }
+
+  pendingTotal(): number {
+    return this.pendingItems().reduce((acc, i) => acc + i.subtotal, 0);
+  }
+
+  async confirmAddItems() {
+    const order = this.addingToOrder();
+    if (!order || !this.pendingItems().length) return;
+    this.savingItems.set(true);
+    try {
+      await this.orderService.addItemsToOrder(order, this.pendingItems());
+      this.closeAddItems();
+      await this.load();
+    } finally {
+      this.savingItems.set(false);
     }
   }
 

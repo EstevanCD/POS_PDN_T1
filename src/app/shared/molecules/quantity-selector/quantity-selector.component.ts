@@ -20,7 +20,7 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
       padding: 2px;
     }
     .qty__btn {
-      width: 28px; height: 28px;
+      width: 32px; height: 32px;
       border: none; border-radius: 50%;
       background: var(--color-surface);
       color: var(--color-primary);
@@ -28,6 +28,10 @@ import { Component, EventEmitter, Input, Output } from '@angular/core';
       cursor: pointer;
       box-shadow: var(--shadow-sm);
       display: flex; align-items: center; justify-content: center;
+    }
+
+    @media (max-width: 768px) {
+      .qty__btn { width: 40px; height: 40px; font-size: 1.3rem; }
     }
     .qty__btn:active { transform: scale(0.9); }
     .qty__value { min-width: 20px; text-align: center; font-weight: 700; }

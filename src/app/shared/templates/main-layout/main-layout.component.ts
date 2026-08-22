@@ -1,6 +1,8 @@
-import { Component, signal } from '@angular/core';
+import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterOutlet } from '@angular/router';
+import { Router, RouterOutlet, NavigationEnd } from '@angular/router';
+import { filter } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HeaderComponent } from '../../organisms/header/header.component';
 import { SidebarComponent } from '../../organisms/sidebar/sidebar.component';
 import { AuthService } from '../../../core/services/auth.service';
@@ -80,6 +82,14 @@ import { OfflineQueueService } from '../../../core/services/offline-queue.servic
 })
 export class MainLayoutComponent {
   sidebarOpen = signal(false);
+  private destroyRef = inject(DestroyRef);
 
-  constructor(public auth: AuthService, public offlineQueue: OfflineQueueService) {}
+  constructor(public auth: AuthService, public offlineQueue: OfflineQueueService, private router: Router) {
+    this.router.events
+      .pipe(
+        filter((e) => e instanceof NavigationEnd),
+        takeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => this.sidebarOpen.set(false));
+  }
 }

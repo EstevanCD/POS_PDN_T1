@@ -62,21 +62,33 @@ import { UNIT_OPTIONS } from '../../../core/utils/unit-conversion';
     .recipe-editor__loading { display: flex; justify-content: center; padding: var(--space-3); }
     .recipe-editor__list { margin-bottom: var(--space-3); }
     .recipe-editor__row {
-      display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: var(--space-3);
+      display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-2);
       padding: var(--space-2) 0; border-bottom: 1px dashed var(--color-border); font-size: var(--fs-sm);
     }
-    .recipe-editor__storage-unit { color: var(--color-text-muted); font-size: var(--fs-xs); font-weight: 400; }
+    .recipe-editor__item-name { min-width: 0; overflow-wrap: break-word; }
+    .recipe-editor__storage-unit { color: var(--color-text-muted); font-size: var(--fs-xs); font-weight: 400; display: block; }
     .recipe-editor__item-qty { color: var(--color-text-muted); font-weight: 600; white-space: nowrap; }
-    .recipe-editor__remove { border: none; background: transparent; color: var(--color-danger); cursor: pointer; }
+    .recipe-editor__remove { border: none; background: transparent; color: var(--color-danger); cursor: pointer; flex-shrink: 0; }
     .recipe-editor__empty { color: var(--color-text-muted); font-size: var(--fs-sm); }
-    .recipe-editor__form { display: grid; grid-template-columns: 1.5fr 1fr 1fr auto; gap: var(--space-2); }
+    .recipe-editor__form {
+      display: grid;
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+      gap: var(--space-2);
+    }
     .recipe-editor__form select, .recipe-editor__form input {
+      min-width: 0;
+      width: 100%;
+      box-sizing: border-box;
       border: 1.5px solid var(--color-border); border-radius: var(--radius-md);
       padding: var(--space-2); font-size: var(--fs-sm); background: var(--color-surface);
     }
+    .recipe-editor__form app-button { display: block; }
 
     @media (max-width: 640px) {
-      .recipe-editor__form { grid-template-columns: 1fr 1fr; }
+      .recipe-editor__form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    }
+    @media (max-width: 420px) {
+      .recipe-editor__form { grid-template-columns: minmax(0, 1fr); }
     }
   `],
 })

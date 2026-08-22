@@ -7,3 +7,4 @@
 /src/environments/environment.local.ts
 README.md
 pos-cafeteria\README.md
+npm-debug.log*

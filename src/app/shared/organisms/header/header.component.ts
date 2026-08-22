@@ -44,11 +44,17 @@ import { ButtonComponent } from '../../atoms/button/button.component';
       display: none;
       border: none; background: transparent; font-size: 1.3rem; cursor: pointer;
     }
-    .app-header__brand { display: flex; align-items: center; gap: var(--space-2); flex: 1; }
-    .app-header__logo { font-size: 1.5rem; }
-    .app-header__logo-img { width: 32px; height: 32px; object-fit: contain; border-radius: var(--radius-sm); }
-    .app-header__title { font-size: var(--fs-lg); }
-    .app-header__user { display: flex; align-items: center; gap: var(--space-3); }
+    .app-header__brand { display: flex; align-items: center; gap: var(--space-2); flex: 1; min-width: 0; }
+    .app-header__logo { font-size: 1.5rem; flex-shrink: 0; }
+    .app-header__logo-img { width: 32px; height: 32px; object-fit: contain; border-radius: var(--radius-sm); flex-shrink: 0; }
+    .app-header__title {
+      font-size: var(--fs-lg);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .app-header__user { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
     .app-header__name { font-size: var(--fs-sm); color: var(--color-text-muted); }
 
     @media (max-width: 1024px) {

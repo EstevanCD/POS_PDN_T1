@@ -86,6 +86,32 @@ export class OrderService {
     }
   }
 
+  /** Agrega productos a una orden abierta que ya existía (ej. la mesa pide algo más) */
+  async addItemsToOrder(order: Order, newItems: OrderItem[]) {
+    if (!order.id || !newItems.length) return;
+
+    const itemsPayload = newItems.map((it) => ({
+      order_id: order.id,
+      product_id: it.product_id,
+      product_name: it.product_name,
+      unit_price: it.unit_price,
+      quantity: it.quantity,
+      subtotal: it.subtotal,
+    }));
+
+    const { error: itemsError } = await this.supabase.client.from('order_items').insert(itemsPayload);
+    if (itemsError) throw itemsError;
+
+    const addedTotal = newItems.reduce((acc, i) => acc + i.subtotal, 0);
+    const newTotal = order.total + addedTotal;
+
+    const { error: updateError } = await this.supabase.client
+      .from('orders')
+      .update({ total: newTotal })
+      .eq('id', order.id);
+    if (updateError) throw updateError;
+  }
+
   async markOrderPaid(order: Order, payments: PaymentSplit[], customerPhone?: string) {
     const paymentMethodSummary = payments.length > 1 ? 'mixed' : payments[0]?.method ?? 'cash';
 

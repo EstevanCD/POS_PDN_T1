@@ -1,9 +1,9 @@
 -- =====================================================================
--- SISTEMA POS CAFETERÍA — SCHEMA DE SUPABASE (PostgreSQL)
+-- SISTEMA POS CAFETERÍA — SCHEMA CONSOLIDADO DE SUPABASE (PostgreSQL)
+-- Refleja el estado completo de la base de datos en producción.
 -- Ejecutar en: Supabase Dashboard > SQL Editor > New query
 -- =====================================================================
 
--- Extensión para generar UUIDs
 create extension if not exists "uuid-ossp";
 
 -- ---------------------------------------------------------------------
@@ -13,16 +13,24 @@ create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
   full_name text,
-  role text not null default 'cajero' check (role in ('admin', 'cajero', 'barista')),
+  role text not null default 'mesero' check (role in ('admin', 'cajero', 'barista', 'mesero')),
   created_at timestamptz not null default now()
 );
 
--- Crea automáticamente un perfil cuando alguien se registra
+-- El primer usuario que se registre queda como admin; los siguientes, como mesero
 create or replace function public.handle_new_user()
 returns trigger as $$
+declare
+  existing_count int;
 begin
+  select count(*) into existing_count from public.profiles;
   insert into public.profiles (id, email, full_name, role)
-  values (new.id, new.email, new.raw_user_meta_data->>'full_name', 'admin');
+  values (
+    new.id,
+    new.email,
+    new.raw_user_meta_data->>'full_name',
+    case when existing_count = 0 then 'admin' else 'mesero' end
+  );
   return new;
 end;
 $$ language plpgsql security definer;
@@ -57,14 +65,30 @@ create table if not exists products (
 create index if not exists idx_products_category on products(category_id);
 
 -- ---------------------------------------------------------------------
--- 3. ÓRDENES (POS)
+-- 3. RECETAS (relación producto ↔ insumo, con conversión de unidades)
+-- ---------------------------------------------------------------------
+create table if not exists product_recipe (
+  id uuid primary key default uuid_generate_v4(),
+  product_id uuid not null references products(id) on delete cascade,
+  inventory_item_id uuid not null references inventory_items(id) on delete cascade,
+  quantity_used numeric(10,3) not null check (quantity_used > 0),
+  unit text not null default 'g' check (unit in ('g', 'kg', 'lb', 'oz', 'ml', 'l', 'unidad')),
+  created_at timestamptz not null default now(),
+  unique(product_id, inventory_item_id)
+);
+
+-- ---------------------------------------------------------------------
+-- 4. ÓRDENES (POS) — con pago dividido, mesa y teléfono de cliente
 -- ---------------------------------------------------------------------
 create table if not exists orders (
   id uuid primary key default uuid_generate_v4(),
   order_number bigserial,
   customer_name text,
+  customer_phone text,
+  table_number text,
   status text not null default 'open' check (status in ('open', 'paid', 'cancelled')),
-  payment_method text check (payment_method in ('cash', 'card', 'transfer')),
+  payment_method text check (payment_method in ('cash', 'card', 'transfer', 'mixed')),
+  payments jsonb,
   total numeric(10,2) not null default 0,
   created_at timestamptz not null default now(),
   closed_at timestamptz
@@ -82,9 +106,10 @@ create table if not exists order_items (
 
 create index if not exists idx_order_items_order on order_items(order_id);
 create index if not exists idx_orders_created_at on orders(created_at);
+create index if not exists idx_orders_status on orders(status);
 
 -- ---------------------------------------------------------------------
--- 4. INVENTARIO
+-- 5. INVENTARIO
 -- ---------------------------------------------------------------------
 create table if not exists inventory_items (
   id uuid primary key default uuid_generate_v4(),
@@ -106,7 +131,7 @@ create table if not exists inventory_movements (
 );
 
 -- ---------------------------------------------------------------------
--- 5. FINANZAS (gastos)
+-- 6. FINANZAS (gastos)
 -- ---------------------------------------------------------------------
 create table if not exists expenses (
   id uuid primary key default uuid_generate_v4(),
@@ -120,63 +145,105 @@ create table if not exists expenses (
 
 create index if not exists idx_expenses_date on expenses(date);
 
+-- ---------------------------------------------------------------------
+-- 7. CONFIGURACIÓN GENERAL (nombre, logo, moneda, tasa de lealtad)
+-- ---------------------------------------------------------------------
+create table if not exists app_settings (
+  id uuid primary key default uuid_generate_v4(),
+  cafe_name text not null default 'Mi Cafetería',
+  logo_url text,
+  currency text not null default 'COP' check (currency in ('COP', 'USD', 'EUR')),
+  loyalty_rate numeric(10,4) not null default 0.001,
+  updated_at timestamptz not null default now()
+);
+
+-- ---------------------------------------------------------------------
+-- 8. PROGRAMA DE LEALTAD (clientes y puntos)
+-- ---------------------------------------------------------------------
+create table if not exists customers (
+  id uuid primary key default uuid_generate_v4(),
+  name text,
+  phone text unique not null,
+  points numeric(10,2) not null default 0,
+  created_at timestamptz not null default now()
+);
+
 -- =====================================================================
 -- ROW LEVEL SECURITY (RLS)
--- Cualquier usuario autenticado (empleado de la cafetería) puede
--- leer y escribir. Ajusta las políticas según tus roles si necesitas
--- restringir, por ejemplo, que solo 'admin' borre productos.
 -- =====================================================================
 
 alter table profiles enable row level security;
 alter table categories enable row level security;
 alter table products enable row level security;
+alter table product_recipe enable row level security;
 alter table orders enable row level security;
 alter table order_items enable row level security;
 alter table inventory_items enable row level security;
 alter table inventory_movements enable row level security;
 alter table expenses enable row level security;
+alter table app_settings enable row level security;
+alter table customers enable row level security;
 
--- Perfiles: cada quien ve y edita el suyo, todos pueden ver todos (para mostrar nombre en header)
+drop policy if exists "profiles_select_all" on profiles;
 create policy "profiles_select_all" on profiles for select using (auth.role() = 'authenticated');
-create policy "profiles_update_own" on profiles for update using (auth.uid() = id);
 
--- Resto de tablas: acceso completo para usuarios autenticados
+drop policy if exists "profiles_update_own" on profiles;
+drop policy if exists "profiles_update_own_or_admin" on profiles;
+create policy "profiles_update_own_or_admin" on profiles
+  for update using (
+    auth.uid() = id
+    or exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
+  );
+
 create policy "categories_all" on categories for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "products_all" on products for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "product_recipe_all" on product_recipe for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "orders_all" on orders for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "order_items_all" on order_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "inventory_items_all" on inventory_items for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "inventory_movements_all" on inventory_movements for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "expenses_all" on expenses for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+create policy "customers_all" on customers for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+
+create policy "app_settings_select" on app_settings for select using (auth.role() = 'authenticated');
+create policy "app_settings_update_admin" on app_settings
+  for update using (
+    exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
+  );
+
+-- ---------------------------------------------------------------------
+-- Storage: bucket para el logo de la cafetería
+-- ---------------------------------------------------------------------
+insert into storage.buckets (id, name, public) values ('branding', 'branding', true)
+on conflict (id) do nothing;
+
+create policy "branding_public_read" on storage.objects
+  for select using (bucket_id = 'branding');
+
+create policy "branding_admin_write" on storage.objects
+  for insert with check (
+    bucket_id = 'branding'
+    and exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
+  );
+
+create policy "branding_admin_update" on storage.objects
+  for update using (
+    bucket_id = 'branding'
+    and exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
+  );
 
 -- =====================================================================
--- DATOS DE EJEMPLO (opcional, cómodo para empezar a probar)
+-- DATOS DE EJEMPLO (opcional — solo si empiezas desde una base vacía)
 -- =====================================================================
+
+insert into app_settings (cafe_name, currency) values ('Mi Cafetería', 'COP')
+on conflict do nothing;
 
 insert into categories (name, icon, sort_order) values
   ('Café caliente', '☕', 1),
   ('Café frío', '🧊', 2),
   ('Repostería', '🥐', 3),
   ('Bebidas', '🥤', 4)
-on conflict do nothing;
-
--- Productos de ejemplo (usa los ids de categorías recién creadas)
-insert into products (name, description, price, category_id, is_active)
-select 'Espresso', 'Shot doble de espresso', 2.50, id, true from categories where name = 'Café caliente'
-union all
-select 'Cappuccino', 'Espresso con leche vaporizada', 3.50, id, true from categories where name = 'Café caliente'
-union all
-select 'Latte', 'Espresso con leche cremosa', 3.75, id, true from categories where name = 'Café caliente'
-union all
-select 'Cold Brew', 'Café frío de extracción lenta', 4.00, id, true from categories where name = 'Café frío'
-union all
-select 'Frappé de vainilla', 'Bebida helada batida', 4.50, id, true from categories where name = 'Café frío'
-union all
-select 'Croissant', 'Croissant de mantequilla', 2.75, id, true from categories where name = 'Repostería'
-union all
-select 'Muffin de arándano', 'Muffin casero', 2.90, id, true from categories where name = 'Repostería'
-union all
-select 'Agua embotellada', 'Agua natural 500ml', 1.50, id, true from categories where name = 'Bebidas'
 on conflict do nothing;
 
 insert into inventory_items (name, unit, quantity, min_quantity, cost_per_unit) values
