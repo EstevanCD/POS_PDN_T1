@@ -22,10 +22,11 @@ import { hasPermission } from '../../core/utils/permissions';
     <div class="menu-page container-page">
       <div class="menu-page__header">
         <h2>📋 Gestión del menú</h2>
-        <app-button *ngIf="canEdit()" (clicked)="showForm.set(!showForm())">{{ showForm() ? 'Cerrar' : '➕ Nuevo producto' }}</app-button>
+                <app-button *ngIf="canEdit()" (clicked)="toggleNewForm()">{{ showForm() && !editingProductId() ? 'Cerrar' : '➕ Nuevo producto' }}</app-button>
       </div>
 
       <app-card *ngIf="showForm()" class="menu-page__form-card">
+        <h3>{{ editingProductId() ? '✏️ Editar producto' : 'Nuevo producto' }}</h3>
         <form (ngSubmit)="saveProduct()" class="menu-page__form">
           <div class="menu-page__grid">
             <label class="menu-page__field">
@@ -52,7 +53,12 @@ import { hasPermission } from '../../core/utils/permissions';
               <input type="text" [(ngModel)]="form.description" name="description" />
             </label>
           </div>
-          <app-button type="submit" [loading]="saving()">💾 Guardar producto</app-button>
+          <div class="menu-page__form-actions">
+            <app-button type="submit" [loading]="saving()">
+              {{ editingProductId() ? '💾 Guardar cambios' : '💾 Guardar producto' }}
+            </app-button>
+            <app-button *ngIf="editingProductId()" type="button" variant="ghost" (clicked)="cancelEdit()">Cancelar</app-button>
+          </div>
         </form>
       </app-card>
 
@@ -82,6 +88,7 @@ import { hasPermission } from '../../core/utils/permissions';
             <div class="menu-page__product-actions">
               <app-badge [tone]="p.is_active ? 'success' : 'danger'">{{ p.is_active ? 'Activo' : 'Inactivo' }}</app-badge>
               <ng-container *ngIf="canEdit()">
+                <app-button size="sm" variant="outline" (clicked)="startEdit(p)">✏️ Editar</app-button>
                 <app-button size="sm" variant="outline" (clicked)="toggleRecipe(p)">🧪 Receta</app-button>
                 <app-button size="sm" variant="outline" (clicked)="toggleActive(p)">
                   {{ p.is_active ? 'Desactivar' : 'Activar' }}
@@ -104,6 +111,8 @@ import { hasPermission } from '../../core/utils/permissions';
   styles: [`
     .menu-page__header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-3); }
     .menu-page__form-card { margin-bottom: var(--space-4); }
+    .menu-page__form-card h3 { margin-bottom: var(--space-3); }
+    .menu-page__form-actions { display: flex; gap: var(--space-2); }
     .menu-page__grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-3); margin-bottom: var(--space-4); }
     .menu-page__field { display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-sm); font-weight: 600; color: var(--color-text-muted); }
     .menu-page__field--wide { grid-column: 1 / -1; }
@@ -141,6 +150,7 @@ export class MenuPage implements OnInit {
   saving = signal(false);
   showForm = signal(false);
   editingRecipeId = signal<string | null>(null);
+  editingProductId = signal<string | null>(null);
 
   form: Partial<Product> = { name: '', category_id: '', price: 0, description: '', image_url: '' };
   newCategoryName = '';
@@ -180,12 +190,47 @@ export class MenuPage implements OnInit {
     this.editingRecipeId.set(this.editingRecipeId() === p.id ? null : p.id);
   }
 
+  startEdit(p: Product) {
+    this.editingProductId.set(p.id);
+    this.form = {
+      name: p.name,
+      category_id: p.category_id,
+      price: p.price,
+      description: p.description ?? '',
+      image_url: p.image_url ?? '',
+    };
+    this.showForm.set(true);
+    this.editingRecipeId.set(null);
+  }
+
+  cancelEdit() {
+    this.editingProductId.set(null);
+    this.form = { name: '', category_id: '', price: 0, description: '', image_url: '' };
+    this.showForm.set(false);
+  }
+
+  toggleNewForm() {
+    if (this.showForm() && !this.editingProductId()) {
+      this.showForm.set(false);
+      return;
+    }
+    this.editingProductId.set(null);
+    this.form = { name: '', category_id: '', price: 0, description: '', image_url: '' };
+    this.showForm.set(true);
+  }
+
   async saveProduct() {
     if (!this.form.name || !this.form.category_id || !this.form.price) return;
     this.saving.set(true);
     try {
-      await this.productService.createProduct({ ...this.form, is_active: true });
+      const editingId = this.editingProductId();
+      if (editingId) {
+        await this.productService.updateProduct(editingId, this.form);
+      } else {
+        await this.productService.createProduct({ ...this.form, is_active: true });
+      }
       this.form = { name: '', category_id: '', price: 0, description: '', image_url: '' };
+      this.editingProductId.set(null);
       this.showForm.set(false);
       await this.loadAll();
     } finally {

@@ -6,6 +6,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ButtonComponent } from '../../shared/atoms/button/button.component';
 import { InputComponent } from '../../shared/atoms/input/input.component';
 import { CardComponent } from '../../shared/atoms/card/card.component';
+import { SettingsService } from '../../core/services/settings.service';
 
 @Component({
   selector: 'app-login-page',
@@ -13,13 +14,23 @@ import { CardComponent } from '../../shared/atoms/card/card.component';
   imports: [CommonModule, FormsModule, ButtonComponent, InputComponent, CardComponent],
   template: `
     <div class="login">
+      <div class="login__bg"></div>
+      <div class="login__overlay"></div>
+
       <app-card class="login__card">
         <div class="login__brand">
-          <span class="login__logo">☕</span>
-          <h1>ZONA CR - POS</h1>
+          <div class="login__logo">
+    <img
+    *ngIf="settings.logoUrl() as logo"
+    [src]="logo"
+    [alt]="settings.cafeName()"
+    class="login__logo-img"
+  />
+  <span *ngIf="!settings.logoUrl()">☕</span>
+</div>
+          <h1>{{ settings.cafeName() }} - POS</h1>
           <p>{{ mode() === 'signin' ? 'Inicia sesión para continuar' : 'Crea tu cuenta de administrador' }}</p>
         </div>
-
         <form (ngSubmit)="submit()" class="login__form">
           <app-input
             *ngIf="mode() === 'signup'"
@@ -42,15 +53,12 @@ import { CardComponent } from '../../shared/atoms/card/card.component';
             [(ngModel)]="password"
             name="password"
           ></app-input>
-
-          <p class="login__error" *ngIf="error()">{{ error() }}</p>
-          <p class="login__success" *ngIf="success()">{{ success() }}</p>
-
+          <p class="login__error" *ngIf="error()">⚠️ {{ error() }}</p>
+          <p class="login__success" *ngIf="success()">✅ {{ success() }}</p>
           <app-button type="submit" [full]="true" size="lg" [loading]="loading()">
             {{ mode() === 'signin' ? 'Entrar' : 'Registrarme' }}
           </app-button>
         </form>
-
         <button class="login__toggle" (click)="toggleMode()">
           {{ mode() === 'signin' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión' }}
         </button>
@@ -59,25 +67,113 @@ import { CardComponent } from '../../shared/atoms/card/card.component';
   `,
   styles: [`
     .login {
+      position: relative;
       min-height: 100vh;
+      width: 100%;
       display: flex;
       align-items: center;
       justify-content: center;
-      background: linear-gradient(160deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
       padding: var(--space-4);
+      overflow: hidden;
     }
-    .login__card { width: 100%; max-width: 400px; }
+
+    /* Capa de fondo: imagen local difuminada y agrandada para que el blur no deje bordes vacíos */
+    .login__bg {
+      position: absolute;
+      inset: 0;
+      background-image: url('/login-bg.jpg');
+      background-size: cover;
+      background-position: center;
+      filter: blur(10px) brightness(0.85) saturate(1.1);
+      transform: scale(1.12);
+      z-index: 0;
+    }
+
+    /* Capa de degradado en tonos de marca, para reforzar identidad y legibilidad */
+    .login__overlay {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(160deg, rgba(74, 50, 37, 0.45) 0%, rgba(43, 33, 27, 0.6) 100%);
+      z-index: 1;
+    }
+
+    /* Tarjeta flotante estilo "vidrio esmerilado" */
+    .login__card {
+      position: relative;
+      z-index: 2;
+      display: block;
+      width: 100%;
+      max-width: 400px;
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      animation: login-card-in 0.4s ease;
+    }
+
+    @keyframes login-card-in {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     .login__brand { text-align: center; margin-bottom: var(--space-5); }
-    .login__logo { font-size: 2.5rem; }
-    .login__brand h1 { font-size: var(--fs-xl); margin: var(--space-2) 0 4px; }
+.login__logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(
+    160deg,
+    var(--color-accent) 0%,
+    var(--color-primary) 100%
+  );
+  font-size: 1.8rem;
+  margin-bottom: var(--space-3);
+  box-shadow: 0 6px 16px rgba(111, 78, 55, 0.35);
+  overflow: hidden;
+}
+
+.login__logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 6px;
+}
+    .login__brand h1 {
+      font-size: var(--fs-xl);
+      margin: 0 0 6px;
+      letter-spacing: -0.01em;
+    }
     .login__brand p { color: var(--color-text-muted); font-size: var(--fs-sm); }
+
     .login__form { display: flex; flex-direction: column; gap: var(--space-4); margin-bottom: var(--space-4); }
-    .login__error { color: var(--color-danger); font-size: var(--fs-sm); text-align: center; }
-    .login__success { color: var(--color-success); font-size: var(--fs-sm); text-align: center; }
+
+    .login__error, .login__success {
+      font-size: var(--fs-sm);
+      text-align: center;
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius-md);
+      font-weight: 600;
+    }
+    .login__error { color: var(--color-danger); background: rgba(198, 40, 40, 0.08); }
+    .login__success { color: var(--color-success); background: rgba(46, 125, 50, 0.08); }
+
     .login__toggle {
       display: block; width: 100%; text-align: center;
       border: none; background: transparent; color: var(--color-primary);
       font-weight: 600; font-size: var(--fs-sm); cursor: pointer; padding: var(--space-2);
+      transition: opacity 0.15s ease;
+    }
+    .login__toggle:hover { opacity: 0.7; }
+
+    @media (max-width: 480px) {
+      .login { padding: var(--space-3); }
+      .login__card { max-width: 100%; }
     }
   `],
 })
@@ -89,21 +185,17 @@ export class LoginPage {
   loading = signal(false);
   error = signal<string | null>(null);
   success = signal<string | null>(null);
-
-  constructor(private auth: AuthService, private router: Router) {}
-
+  constructor(private auth: AuthService, private router: Router, public settings: SettingsService) { }
   toggleMode() {
     this.mode.set(this.mode() === 'signin' ? 'signup' : 'signin');
     this.error.set(null);
     this.success.set(null);
   }
-
   async submit() {
     if (!this.email || !this.password) return;
     this.loading.set(true);
     this.error.set(null);
     this.success.set(null);
-
     if (this.mode() === 'signin') {
       const { error } = await this.auth.signInWithPassword(this.email, this.password);
       this.loading.set(false);
