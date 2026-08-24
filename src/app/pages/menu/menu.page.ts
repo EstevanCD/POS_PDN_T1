@@ -102,6 +102,7 @@ import { hasPermission } from '../../core/utils/permissions';
             *ngIf="editingRecipeId() === p.id"
             [productId]="p.id"
             [productName]="p.name"
+            [productPrice]="p.price"
             [inventoryItems]="inventoryItems()"
           ></app-recipe-editor>
         </app-card>
