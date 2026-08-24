@@ -67,6 +67,7 @@ import { Profile, UserRole } from '../../core/models/profile.model';
               <option value="cajero">Cajero</option>
               <option value="barista">Barista</option>
               <option value="mesero">Mesero</option>
+              <option value="cocinero">Cocinero</option>
             </select>
           </div>
           <p class="settings-page__hint" *ngIf="!users().length">No hay usuarios registrados aún.</p>

@@ -166,6 +166,14 @@ export class OrderService {
     if (error) throw error;
   }
 
+  async updateKitchenStatus(orderId: string, status: 'pending' | 'preparing' | 'ready') {
+    const { error } = await this.supabase.client
+      .from('orders')
+      .update({ kitchen_status: status })
+      .eq('id', orderId);
+    if (error) throw error;
+  }
+
   private async deductInventoryForItems(items: OrderItem[]) {
     const productIds = items.map((i) => i.product_id);
     const entries = await this.recipeService.getRecipeEntriesForProducts(productIds);

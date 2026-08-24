@@ -47,6 +47,7 @@ import { AppCurrencyPipe } from '../../shared/pipes/app-currency.pipe';
       <app-inventory-table
         *ngIf="!loading()"
         [items]="items()"
+        [canEdit]="canEdit()"
         (edit)="startEdit($event)"
         (delete)="deleteItem($event)"
       ></app-inventory-table>

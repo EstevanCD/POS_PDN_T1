@@ -7,6 +7,7 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   card: 'Tarjeta',
   transfer: 'Transferencia',
   mixed: 'Pago mixto',
+  other: 'Otro',
 };
 
 export function paymentMethodLabel(method?: string | null): string {
@@ -19,6 +20,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   cajero: 'Cajero',
   barista: 'Barista',
   mesero: 'Mesero',
+  cocinero: 'Cocinero',
 };
 
 export function roleLabel(role?: string | null): string {

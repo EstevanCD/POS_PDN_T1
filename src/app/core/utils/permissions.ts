@@ -3,6 +3,8 @@ import { UserRole } from '../models/profile.model';
 export type Permission =
   | 'order:create'
   | 'order:view-active'
+  | 'order:manage'
+  | 'order:mark-ready'
   | 'menu:view'
   | 'menu:edit'
   | 'inventory:view'
@@ -16,21 +18,25 @@ export type Permission =
 
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
-    'order:create', 'order:view-active', 'menu:view', 'menu:edit',
-    'inventory:view', 'inventory:edit', 'finance:view', 'finance:edit',
-    'summary:view', 'settings:view', 'customers:view', 'users:manage',
+    'order:create', 'order:view-active', 'order:manage', 'order:mark-ready',
+    'menu:view', 'menu:edit', 'inventory:view', 'inventory:edit',
+    'finance:view', 'finance:edit', 'summary:view', 'settings:view',
+    'customers:view', 'users:manage',
   ],
   cajero: [
-    'order:create', 'order:view-active', 'menu:view',
+    'order:create', 'order:view-active', 'order:manage', 'menu:view',
     'inventory:view', 'finance:view', 'finance:edit',
     'summary:view', 'customers:view',
   ],
   barista: [
-    'order:create', 'order:view-active', 'menu:view',
-    'inventory:view', 'inventory:edit',
+    'order:create', 'order:view-active', 'order:manage', 'order:mark-ready',
+    'menu:view', 'inventory:view', 'inventory:edit',
   ],
   mesero: [
-    'order:create', 'order:view-active',
+    'order:create', 'order:view-active', 'order:manage',
+  ],
+  cocinero: [
+    'order:view-active', 'order:mark-ready',
   ],
 };
 

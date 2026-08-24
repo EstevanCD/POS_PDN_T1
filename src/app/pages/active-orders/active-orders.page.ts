@@ -1,7 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Order, OrderItem, PaymentMethod, PaymentSplit } from '../../core/models/order.model';
+import { Order, OrderItem, PaymentMethod, PaymentSplit, KitchenStatus } from '../../core/models/order.model';
 import { Product, Category } from '../../core/models/product.model';
 import { OrderService } from '../../core/services/order.service';
 import { ProductService } from '../../core/services/product.service';
@@ -15,6 +15,8 @@ import { TicketModalComponent } from '../../shared/organisms/ticket-modal/ticket
 import { ProductGridComponent } from '../../shared/organisms/product-grid/product-grid.component';
 import { CategoryTabsComponent } from '../../shared/organisms/category-tabs/category-tabs.component';
 import { SearchBarComponent } from '../../shared/molecules/search-bar/search-bar.component';
+import { AuthService } from '../../core/services/auth.service';
+import { hasPermission } from '../../core/utils/permissions';
 
 @Component({
   selector: 'app-active-orders-page',
@@ -39,7 +41,7 @@ import { SearchBarComponent } from '../../shared/molecules/search-bar/search-bar
       <div class="active-orders__loading" *ngIf="loading()"><app-spinner></app-spinner></div>
 
       <div class="active-orders__grid" *ngIf="!loading()">
-        <app-card *ngFor="let order of orders()" class="active-orders__card">
+        <app-card *ngFor="let order of orders()" class="active-orders__card" [class]="'active-orders__card--' + (order.kitchen_status || 'pending')">
           <div class="active-orders__header">
             <span class="active-orders__number">
               {{ order.table_number || 'Sin mesa' }} · #{{ order.order_number }}
@@ -59,9 +61,33 @@ import { SearchBarComponent } from '../../shared/molecules/search-bar/search-bar
             <span>{{ order.total | appCurrency }}</span>
           </div>
 
-          <app-button variant="outline" [full]="true" (clicked)="openAddItems(order)">➕ Agregar productos</app-button>
-          <app-button [full]="true" (clicked)="openCharge(order)">💳 Cobrar</app-button>
-          <app-button variant="danger" size="sm" [full]="true" (clicked)="cancel(order)">Cancelar orden</app-button>
+          <!-- Estado de cocina: visible para todos, editable solo con permiso -->
+          <div class="active-orders__kitchen-row">
+            <button
+              class="active-orders__kitchen-badge"
+              [class]="'active-orders__kitchen-badge--' + (order.kitchen_status || 'pending')"
+              [disabled]="!canMarkReady() || order.kitchen_status === 'ready'"
+              (click)="advanceKitchenStatus(order)"
+            >
+              {{ kitchenStatusLabel(order.kitchen_status) }}
+              <span *ngIf="canMarkReady() && order.kitchen_status !== 'ready'"> · toca para avanzar</span>
+            </button>
+            <button
+              *ngIf="canMarkReady() && order.kitchen_status === 'ready'"
+              class="active-orders__kitchen-reset"
+              (click)="resetKitchenStatus(order)"
+              aria-label="Reiniciar estado de la orden"
+              title="Reiniciar estado (por error)"
+            >
+              ↺
+            </button>
+          </div>
+
+          <ng-container *ngIf="canManage()">
+            <app-button variant="outline" [full]="true" (clicked)="openAddItems(order)">➕ Agregar productos</app-button>
+            <app-button [full]="true" (clicked)="openCharge(order)">💳 Cobrar</app-button>
+            <app-button variant="danger" size="sm" [full]="true" (clicked)="cancel(order)">Cancelar orden</app-button>
+          </ng-container>
         </app-card>
 
         <p class="active-orders__empty" *ngIf="!orders().length">No hay órdenes activas en este momento.</p>
@@ -185,6 +211,42 @@ import { SearchBarComponent } from '../../shared/molecules/search-bar/search-bar
     .active-orders__items li { display: flex; justify-content: space-between; font-size: var(--fs-sm); }
     .active-orders__total { display: flex; justify-content: space-between; font-weight: 700; font-size: var(--fs-lg); border-top: 1px dashed var(--color-border); padding-top: var(--space-2); }
     .active-orders__empty { color: var(--color-text-muted); grid-column: 1 / -1; text-align: center; padding: var(--space-8); }
+    .active-orders__card--ready { border-color: var(--color-success); box-shadow: 0 0 0 2px rgba(46, 125, 50, 0.15); }
+
+    .active-orders__kitchen-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .active-orders__kitchen-badge {
+      flex: 1;
+      min-width: 0;
+      border: none; border-radius: var(--radius-md);
+      padding: var(--space-2) var(--space-3);
+      font-weight: 700; font-size: var(--fs-sm);
+      cursor: pointer; text-align: center;
+    }
+    .active-orders__kitchen-badge:disabled { cursor: default; }
+    .active-orders__kitchen-badge--pending { background: var(--color-surface-alt); color: var(--color-text-muted); }
+    .active-orders__kitchen-badge--preparing { background: #FDECD9; color: var(--color-warning); }
+    .active-orders__kitchen-badge--ready { background: #E3F2E5; color: var(--color-success); }
+    .active-orders__kitchen-reset {
+      flex-shrink: 0;
+      border: 1px solid var(--color-border);
+      background: transparent;
+      color: var(--color-text-muted);
+      font-size: var(--fs-sm);
+      cursor: pointer;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.6;
+      transition: opacity 0.15s ease;
+    }
+    .active-orders__kitchen-reset:hover { opacity: 1; }
 
     .add-items-modal__backdrop, .charge-modal__backdrop {
       position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 100; padding: var(--space-4);
@@ -260,8 +322,38 @@ export class ActiveOrdersPage implements OnInit {
     private orderService: OrderService,
     private productService: ProductService,
     private loyaltyService: LoyaltyService,
-    private settings: SettingsService
-  ) {}
+    private settings: SettingsService,
+    private auth: AuthService
+  ) { }
+
+  canManage(): boolean {
+    return hasPermission(this.auth.profile()?.role, 'order:manage');
+  }
+
+  canMarkReady(): boolean {
+    return hasPermission(this.auth.profile()?.role, 'order:mark-ready');
+  }
+
+  kitchenStatusLabel(status?: KitchenStatus): string {
+    switch (status) {
+      case 'preparing': return '🟡 En preparación';
+      case 'ready': return '✅ Listo para servir';
+      default: return '🔵 Pendiente';
+    }
+  }
+
+  async advanceKitchenStatus(order: Order) {
+    if (!order.id || !this.canMarkReady() || order.kitchen_status === 'ready') return;
+    const next: KitchenStatus = order.kitchen_status === 'preparing' ? 'ready' : 'preparing';
+    await this.orderService.updateKitchenStatus(order.id, next);
+    await this.load();
+  }
+
+  async resetKitchenStatus(order: Order) {
+    if (!order.id || !confirm('¿Reiniciar el estado de esta orden a "Pendiente"?')) return;
+    await this.orderService.updateKitchenStatus(order.id, 'pending');
+    await this.load();
+  }
 
   async ngOnInit() {
     await this.load();

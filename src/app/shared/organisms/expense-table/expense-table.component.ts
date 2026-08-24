@@ -17,6 +17,7 @@ import { LabelPipe } from '../../pipes/label.pipe';
             <th>Fecha</th>
             <th>Concepto</th>
             <th>Categoría</th>
+            <th>Método</th>
             <th>Monto</th>
             <th></th>
           </tr>
@@ -26,13 +27,14 @@ import { LabelPipe } from '../../pipes/label.pipe';
             <td>{{ e.date | date: 'dd/MM/yyyy' }}</td>
             <td class="table__name">{{ e.concept }}</td>
             <td><app-badge tone="info">{{ e.category | appLabel: 'expenseCategory' }}</app-badge></td>
+            <td><app-badge tone="neutral">{{ e.payment_method | appLabel: 'payment' }}</app-badge></td>
             <td>{{ e.amount | appCurrency }}</td>
             <td class="table__actions">
               <button (click)="delete.emit(e)" aria-label="Eliminar">🗑️</button>
             </td>
           </tr>
           <tr *ngIf="!expenses.length">
-            <td colspan="5" class="table__empty">Aún no hay gastos registrados este período.</td>
+            <td colspan="6" class="table__empty">No hay gastos registrados en este período.</td>
           </tr>
         </tbody>
       </table>

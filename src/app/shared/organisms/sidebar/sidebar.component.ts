@@ -11,7 +11,7 @@ import { hasPermission, Permission } from '../../../core/utils/permissions';
   template: `
     <aside class="sidebar" [class.sidebar--open]="open">
       <nav class="sidebar__nav">
-        <app-nav-item route="/order" icon="🧾" label="Tomar orden"></app-nav-item>
+        <app-nav-item *ngIf="can('order:create')" route="/order" icon="🧾" label="Tomar orden"></app-nav-item>
         <app-nav-item route="/active-orders" icon="🕐" label="Órdenes activas"></app-nav-item>
         <app-nav-item *ngIf="can('menu:view')" route="/menu" icon="📋" label="Menú"></app-nav-item>
         <app-nav-item *ngIf="can('inventory:view')" route="/inventory" icon="📦" label="Inventario"></app-nav-item>

@@ -3,11 +3,13 @@ import { CommonModule } from '@angular/common';
 import { AuthService } from '../../../core/services/auth.service';
 import { SettingsService } from '../../../core/services/settings.service';
 import { ButtonComponent } from '../../atoms/button/button.component';
+import { BadgeComponent } from '../../atoms/badge/badge.component';
+import { LabelPipe } from '../../pipes/label.pipe';
 
 @Component({
   selector: 'app-header',
   standalone: true,
-  imports: [CommonModule, ButtonComponent],
+  imports: [CommonModule, ButtonComponent, BadgeComponent, LabelPipe],
   template: `
     <header class="app-header">
       <button class="app-header__menu-btn" (click)="toggleSidebar.emit()" aria-label="Menú">☰</button>
@@ -21,8 +23,9 @@ import { ButtonComponent } from '../../atoms/button/button.component';
         <span class="app-header__logo" *ngIf="!settings.logoUrl()">☕</span>
         <h1 class="app-header__title">{{ settings.cafeName() }}</h1>
       </div>
-      <div class="app-header__user">
-        <span class="app-header__name" *ngIf="auth.profile() as p">{{ p.full_name || p.email }}</span>
+      <div class="app-header__user" *ngIf="auth.profile() as p">
+        <span class="app-header__name">{{ p.full_name || p.email }}</span>
+        <app-badge tone="info" class="app-header__role">{{ p.role | appLabel: 'role' }}</app-badge>
         <app-button variant="ghost" size="sm" (clicked)="logout()">Salir</app-button>
       </div>
     </header>
@@ -56,6 +59,7 @@ import { ButtonComponent } from '../../atoms/button/button.component';
     }
     .app-header__user { display: flex; align-items: center; gap: var(--space-3); flex-shrink: 0; }
     .app-header__name { font-size: var(--fs-sm); color: var(--color-text-muted); }
+    .app-header__role { flex-shrink: 0; }
 
     @media (max-width: 1024px) {
       .app-header__menu-btn { display: inline-flex; }
@@ -63,6 +67,7 @@ import { ButtonComponent } from '../../atoms/button/button.component';
     @media (max-width: 480px) {
       .app-header { padding: 0 var(--space-3); }
       .app-header__name { display: none; }
+      .app-header__user { gap: var(--space-2); }
     }
   `],
 })

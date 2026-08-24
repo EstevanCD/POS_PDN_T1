@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { Router } from '@angular/router';
 import { Session } from '@supabase/supabase-js';
 import { SupabaseService } from './supabase.service';
 import { Profile } from '../models/profile.model';
@@ -20,7 +21,7 @@ export class AuthService {
    */
   private initializationPromise: Promise<void>;
 
-  constructor(private supabase: SupabaseService) {
+  constructor(private supabase: SupabaseService, private router: Router) {
     this.initializationPromise = this.init();
   }
 
@@ -137,18 +138,23 @@ export class AuthService {
   }
 
   /**
-   * Cierre de sesión.
+   * Cierre de sesión. Limpia el estado local y redirige a /login
+   * incluso si la llamada al servidor falla (ej. sin conexión),
+   * para que el usuario nunca quede atrapado dentro de la app.
    */
   async signOut(): Promise<void> {
-    const { error } = await this.supabase.client.auth.signOut();
-
-    if (error) {
-      console.error('Error cerrando sesión:', error);
-      return;
+    try {
+      const { error } = await this.supabase.client.auth.signOut();
+      if (error) {
+        console.error('Error cerrando sesión en el servidor:', error);
+      }
+    } catch (error) {
+      console.error('Error de red al cerrar sesión:', error);
+    } finally {
+      this.session.set(null);
+      this.profile.set(null);
+      this.router.navigate(['/login']);
     }
-
-    this.session.set(null);
-    this.profile.set(null);
   }
 
   /**

@@ -2,8 +2,7 @@ import { Component, EventEmitter, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonComponent } from '../../atoms/button/button.component';
-import { Expense, ExpenseCategory } from '../../../core/models/expense.model';
-
+import { Expense, ExpenseCategory, ExpensePaymentMethod } from '../../../core/models/expense.model';
 @Component({
   selector: 'app-expense-form',
   standalone: true,
@@ -24,6 +23,15 @@ import { Expense, ExpenseCategory } from '../../../core/models/expense.model';
             <option value="renta">Renta</option>
             <option value="mantenimiento">Mantenimiento</option>
             <option value="otros">Otros</option>
+          </select>
+        </label>
+        <label class="exp-form__field">
+          <span>Método de pago</span>
+          <select [(ngModel)]="paymentMethod" name="paymentMethod">
+            <option value="cash">💵 Efectivo</option>
+            <option value="card">💳 Tarjeta</option>
+            <option value="transfer">📲 Transferencia</option>
+            <option value="other">🔖 Otro</option>
           </select>
         </label>
         <label class="exp-form__field">
@@ -65,16 +73,16 @@ import { Expense, ExpenseCategory } from '../../../core/models/expense.model';
 export class ExpenseFormComponent {
   concept = '';
   category: ExpenseCategory = 'insumos';
+  paymentMethod: ExpensePaymentMethod = 'cash';
   amount: number | null = null;
   date = new Date().toISOString().slice(0, 10);
-
   @Output() create = new EventEmitter<Partial<Expense>>();
-
   submit() {
     if (!this.concept || !this.amount) return;
     this.create.emit({
       concept: this.concept,
       category: this.category,
+      payment_method: this.paymentMethod,
       amount: this.amount,
       date: this.date,
     });

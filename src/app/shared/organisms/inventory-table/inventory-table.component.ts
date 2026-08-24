@@ -35,8 +35,11 @@ import { AppCurrencyPipe } from '../../pipes/app-currency.pipe';
               </app-badge>
             </td>
             <td class="table__actions">
-              <button (click)="edit.emit(item)" aria-label="Editar">✏️</button>
-              <button (click)="delete.emit(item)" aria-label="Eliminar">🗑️</button>
+              <ng-container *ngIf="canEdit">
+                <button (click)="edit.emit(item)" aria-label="Editar">✏️</button>
+                <button (click)="delete.emit(item)" aria-label="Eliminar">🗑️</button>
+              </ng-container>
+              <span *ngIf="!canEdit" class="table__readonly">—</span>
             </td>
           </tr>
           <tr *ngIf="!items.length">
@@ -50,6 +53,7 @@ import { AppCurrencyPipe } from '../../pipes/app-currency.pipe';
 })
 export class InventoryTableComponent {
   @Input() items: InventoryItem[] = [];
+  @Input() canEdit = false;
   @Output() edit = new EventEmitter<InventoryItem>();
   @Output() delete = new EventEmitter<InventoryItem>();
 }

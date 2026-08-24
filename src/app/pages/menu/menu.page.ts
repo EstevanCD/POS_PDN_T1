@@ -59,7 +59,7 @@ import { hasPermission } from '../../core/utils/permissions';
       <app-card class="menu-page__cat-card">
         <div class="menu-page__cat-header">
           <h3>Categorías</h3>
-          <div class="menu-page__cat-add">
+          <div class="menu-page__cat-add" *ngIf="canEdit()">
             <input type="text" placeholder="Nueva categoría" [(ngModel)]="newCategoryName" name="newCategoryName" />
             <input type="text" placeholder="Emoji (opcional)" [(ngModel)]="newCategoryIcon" name="newCategoryIcon" style="max-width: 90px;" />
             <app-button size="sm" (clicked)="addCategory()">Agregar</app-button>

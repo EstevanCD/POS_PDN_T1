@@ -8,7 +8,7 @@ export function permissionGuard(permission: Permission): CanActivateFn {
     const auth = inject(AuthService);
     const router = inject(Router);
     if (hasPermission(auth.profile()?.role, permission)) return true;
-    router.navigate(['/order']);
+    router.navigate(['/active-orders']);
     return false;
   };
 }

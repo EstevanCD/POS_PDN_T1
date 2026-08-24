@@ -16,6 +16,8 @@ export interface OrderItem {
   subtotal: number;
 }
 
+export type KitchenStatus = 'pending' | 'preparing' | 'ready';
+
 export interface Order {
   id?: string;
   order_number?: number;
@@ -23,6 +25,7 @@ export interface Order {
   customer_phone?: string;
   table_number?: string;
   status: OrderStatus;
+  kitchen_status?: KitchenStatus;
   payment_method?: PaymentMethod | 'mixed';
   payments?: PaymentSplit[];
   total: number;
