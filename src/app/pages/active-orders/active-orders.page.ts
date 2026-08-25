@@ -17,6 +17,7 @@ import { CategoryTabsComponent } from '../../shared/organisms/category-tabs/cate
 import { SearchBarComponent } from '../../shared/molecules/search-bar/search-bar.component';
 import { AuthService } from '../../core/services/auth.service';
 import { hasPermission } from '../../core/utils/permissions';
+import { OnDestroy } from '@angular/core';
 
 @Component({
   selector: 'app-active-orders-page',
@@ -291,7 +292,7 @@ import { hasPermission } from '../../core/utils/permissions';
     .charge-modal__split-balance--error { color: var(--color-danger); }
   `],
 })
-export class ActiveOrdersPage implements OnInit {
+export class ActiveOrdersPage implements OnInit, OnDestroy {
   orders = signal<Order[]>([]);
   loading = signal(true);
   chargingId = signal<string | null>(null);
@@ -317,6 +318,9 @@ export class ActiveOrdersPage implements OnInit {
     { value: 'card', label: 'Tarjeta', icon: '💳' },
     { value: 'transfer', label: 'Transferencia', icon: '📲' },
   ];
+
+  private unsubscribeRealtime: (() => void) | null = null;
+  private reloadTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private orderService: OrderService,
@@ -363,6 +367,21 @@ export class ActiveOrdersPage implements OnInit {
     ]);
     this.products.set(products);
     this.categories.set(categories);
+
+    // Escucha cambios en vivo (de cualquier usuario/dispositivo) y recarga
+    // esta pantalla automáticamente, sin que nadie tenga que refrescar.
+    this.unsubscribeRealtime = this.orderService.subscribeToOrderChanges(() => this.scheduleReload());
+  }
+
+  ngOnDestroy() {
+    this.unsubscribeRealtime?.();
+    if (this.reloadTimeout) clearTimeout(this.reloadTimeout);
+  }
+
+  /** Agrupa varios cambios casi simultáneos (ej. orden + sus items) en una sola recarga */
+  private scheduleReload() {
+    if (this.reloadTimeout) clearTimeout(this.reloadTimeout);
+    this.reloadTimeout = setTimeout(() => this.load(), 400);
   }
 
   async load() {

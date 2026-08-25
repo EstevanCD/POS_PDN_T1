@@ -19,46 +19,46 @@ import { hasPermission } from '../../core/utils/permissions';
   standalone: true,
   imports: [CommonModule, FormsModule, ButtonComponent, CardComponent, BadgeComponent, SpinnerComponent, AppCurrencyPipe, RecipeEditorComponent],
   template: `
+    <!-- Campos del formulario, reutilizados tanto para "Nuevo producto" como para "Editar" inline -->
+    <ng-template #productFormFields>
+      <div class="menu-page__grid">
+        <label class="menu-page__field">
+          <span>Nombre</span>
+          <input type="text" [(ngModel)]="form.name" name="name" required />
+        </label>
+        <label class="menu-page__field">
+          <span>Categoría</span>
+          <select [(ngModel)]="form.category_id" name="category_id" required>
+            <option value="" disabled>Selecciona...</option>
+            <option *ngFor="let c of categories()" [value]="c.id">{{ c.icon }} {{ c.name }}</option>
+          </select>
+        </label>
+        <label class="menu-page__field">
+          <span>Precio</span>
+          <input type="number" step="0.01" min="0" [(ngModel)]="form.price" name="price" required />
+        </label>
+        <label class="menu-page__field">
+          <span>URL de imagen (opcional)</span>
+          <input type="text" [(ngModel)]="form.image_url" name="image_url" placeholder="https://..." />
+        </label>
+        <label class="menu-page__field menu-page__field--wide">
+          <span>Descripción</span>
+          <input type="text" [(ngModel)]="form.description" name="description" />
+        </label>
+      </div>
+    </ng-template>
+
     <div class="menu-page container-page">
       <div class="menu-page__header">
         <h2>📋 Gestión del menú</h2>
-                <app-button *ngIf="canEdit()" (clicked)="toggleNewForm()">{{ showForm() && !editingProductId() ? 'Cerrar' : '➕ Nuevo producto' }}</app-button>
+        <app-button *ngIf="canEdit()" (clicked)="toggleNewForm()">{{ showNewForm() ? 'Cerrar' : '➕ Nuevo producto' }}</app-button>
       </div>
 
-      <app-card *ngIf="showForm()" class="menu-page__form-card">
-        <h3>{{ editingProductId() ? '✏️ Editar producto' : 'Nuevo producto' }}</h3>
+      <app-card *ngIf="showNewForm()" class="menu-page__form-card">
+        <h3>Nuevo producto</h3>
         <form (ngSubmit)="saveProduct()" class="menu-page__form">
-          <div class="menu-page__grid">
-            <label class="menu-page__field">
-              <span>Nombre</span>
-              <input type="text" [(ngModel)]="form.name" name="name" required />
-            </label>
-            <label class="menu-page__field">
-              <span>Categoría</span>
-              <select [(ngModel)]="form.category_id" name="category_id" required>
-                <option value="" disabled>Selecciona...</option>
-                <option *ngFor="let c of categories()" [value]="c.id">{{ c.icon }} {{ c.name }}</option>
-              </select>
-            </label>
-            <label class="menu-page__field">
-              <span>Precio</span>
-              <input type="number" step="0.01" min="0" [(ngModel)]="form.price" name="price" required />
-            </label>
-            <label class="menu-page__field">
-              <span>URL de imagen (opcional)</span>
-              <input type="text" [(ngModel)]="form.image_url" name="image_url" placeholder="https://..." />
-            </label>
-            <label class="menu-page__field menu-page__field--wide">
-              <span>Descripción</span>
-              <input type="text" [(ngModel)]="form.description" name="description" />
-            </label>
-          </div>
-          <div class="menu-page__form-actions">
-            <app-button type="submit" [loading]="saving()">
-              {{ editingProductId() ? '💾 Guardar cambios' : '💾 Guardar producto' }}
-            </app-button>
-            <app-button *ngIf="editingProductId()" type="button" variant="ghost" (clicked)="cancelEdit()">Cancelar</app-button>
-          </div>
+          <ng-container *ngTemplateOutlet="productFormFields"></ng-container>
+          <app-button type="submit" [loading]="saving()">💾 Guardar producto</app-button>
         </form>
       </app-card>
 
@@ -88,7 +88,7 @@ import { hasPermission } from '../../core/utils/permissions';
             <div class="menu-page__product-actions">
               <app-badge [tone]="p.is_active ? 'success' : 'danger'">{{ p.is_active ? 'Activo' : 'Inactivo' }}</app-badge>
               <ng-container *ngIf="canEdit()">
-                <app-button size="sm" variant="outline" (clicked)="startEdit(p)">✏️ Editar</app-button>
+                <app-button size="sm" variant="outline" (clicked)="toggleEdit(p)">✏️ Editar</app-button>
                 <app-button size="sm" variant="outline" (clicked)="toggleRecipe(p)">🧪 Receta</app-button>
                 <app-button size="sm" variant="outline" (clicked)="toggleActive(p)">
                   {{ p.is_active ? 'Desactivar' : 'Activar' }}
@@ -96,6 +96,18 @@ import { hasPermission } from '../../core/utils/permissions';
                 <app-button size="sm" variant="danger" (clicked)="remove(p)">🗑️</app-button>
               </ng-container>
             </div>
+          </div>
+
+          <!-- Formulario de edición inline, igual patrón visual que Receta -->
+          <div class="menu-page__edit-inline" *ngIf="editingProductId() === p.id">
+            <h4>✏️ Editar "{{ p.name }}"</h4>
+            <form (ngSubmit)="saveProduct()" class="menu-page__form">
+              <ng-container *ngTemplateOutlet="productFormFields"></ng-container>
+              <div class="menu-page__form-actions">
+                <app-button type="submit" [loading]="saving()">💾 Guardar cambios</app-button>
+                <app-button type="button" variant="ghost" (clicked)="cancelEdit()">Cancelar</app-button>
+              </div>
+            </form>
           </div>
 
           <app-recipe-editor
@@ -129,13 +141,21 @@ import { hasPermission } from '../../core/utils/permissions';
       padding: var(--space-2) var(--space-3); font-size: var(--fs-sm);
     }
     .menu-page__cat-list { display: flex; gap: var(--space-2); flex-wrap: wrap; }
-
     .menu-page__loading { display: flex; justify-content: center; padding: var(--space-8); }
     .menu-page__products { display: flex; flex-direction: column; gap: var(--space-3); }
     .menu-page__product-row { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
     .menu-page__product-name { font-weight: 700; }
     .menu-page__product-meta { font-size: var(--fs-sm); color: var(--color-text-muted); }
     .menu-page__product-actions { display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+
+    .menu-page__edit-inline {
+      border: 1.5px dashed var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      margin-top: var(--space-3);
+      background: var(--color-surface-alt);
+    }
+    .menu-page__edit-inline h4 { margin-bottom: var(--space-3); }
 
     @media (max-width: 560px) {
       .menu-page__grid { grid-template-columns: 1fr; }
@@ -149,10 +169,9 @@ export class MenuPage implements OnInit {
   inventoryItems = signal<InventoryItem[]>([]);
   loading = signal(true);
   saving = signal(false);
-  showForm = signal(false);
+  showNewForm = signal(false);
   editingRecipeId = signal<string | null>(null);
   editingProductId = signal<string | null>(null);
-
   form: Partial<Product> = { name: '', category_id: '', price: 0, description: '', image_url: '' };
   newCategoryName = '';
   newCategoryIcon = '☕';
@@ -191,7 +210,11 @@ export class MenuPage implements OnInit {
     this.editingRecipeId.set(this.editingRecipeId() === p.id ? null : p.id);
   }
 
-  startEdit(p: Product) {
+  toggleEdit(p: Product) {
+    if (this.editingProductId() === p.id) {
+      this.cancelEdit();
+      return;
+    }
     this.editingProductId.set(p.id);
     this.form = {
       name: p.name,
@@ -200,24 +223,23 @@ export class MenuPage implements OnInit {
       description: p.description ?? '',
       image_url: p.image_url ?? '',
     };
-    this.showForm.set(true);
+    this.showNewForm.set(false);
     this.editingRecipeId.set(null);
   }
 
   cancelEdit() {
     this.editingProductId.set(null);
     this.form = { name: '', category_id: '', price: 0, description: '', image_url: '' };
-    this.showForm.set(false);
   }
 
   toggleNewForm() {
-    if (this.showForm() && !this.editingProductId()) {
-      this.showForm.set(false);
+    if (this.showNewForm()) {
+      this.showNewForm.set(false);
       return;
     }
     this.editingProductId.set(null);
     this.form = { name: '', category_id: '', price: 0, description: '', image_url: '' };
-    this.showForm.set(true);
+    this.showNewForm.set(true);
   }
 
   async saveProduct() {
@@ -232,7 +254,7 @@ export class MenuPage implements OnInit {
       }
       this.form = { name: '', category_id: '', price: 0, description: '', image_url: '' };
       this.editingProductId.set(null);
-      this.showForm.set(false);
+      this.showNewForm.set(false);
       await this.loadAll();
     } finally {
       this.saving.set(false);

@@ -39,7 +39,8 @@ import { AppCurrencyPipe } from '../../shared/pipes/app-currency.pipe';
       </div>
 
       <app-card *ngIf="showForm()" class="inventory-page__form-card">
-        <app-inventory-form [editingItem]="editingItem()" (save)="saveItem($event)"></app-inventory-form>
+        <h3>Nuevo insumo</h3>
+        <app-inventory-form (save)="saveItem($event)"></app-inventory-form>
       </app-card>
 
       <div class="inventory-page__loading" *ngIf="loading()"><app-spinner></app-spinner></div>
@@ -48,7 +49,7 @@ import { AppCurrencyPipe } from '../../shared/pipes/app-currency.pipe';
         *ngIf="!loading()"
         [items]="items()"
         [canEdit]="canEdit()"
-        (edit)="startEdit($event)"
+        (save)="saveItem($event)"
         (delete)="deleteItem($event)"
       ></app-inventory-table>
     </div>
@@ -60,6 +61,7 @@ import { AppCurrencyPipe } from '../../shared/pipes/app-currency.pipe';
       margin-bottom: var(--space-5);
     }
     .inventory-page__form-card { margin-bottom: var(--space-4); }
+    .inventory-page__form-card h3 { margin-bottom: var(--space-3); }
     .inventory-page__loading { display: flex; justify-content: center; padding: var(--space-8); }
 
     @media (max-width: 720px) {
@@ -71,7 +73,6 @@ export class InventoryPage implements OnInit {
   items = signal<InventoryItem[]>([]);
   loading = signal(true);
   showForm = signal(false);
-  editingItem = signal<InventoryItem | null>(null);
 
   constructor(private inventoryService: InventoryService, private auth: AuthService) { }
 
@@ -100,18 +101,12 @@ export class InventoryPage implements OnInit {
     return this.items().filter((i) => i.quantity <= i.min_quantity).length;
   }
 
-  startEdit(item: InventoryItem) {
-    this.editingItem.set(item);
-    this.showForm.set(true);
-  }
-
   async saveItem(payload: Partial<InventoryItem>) {
     if (payload.id) {
       await this.inventoryService.updateItem(payload.id, payload);
     } else {
       await this.inventoryService.createItem(payload);
     }
-    this.editingItem.set(null);
     this.showForm.set(false);
     await this.load();
   }

@@ -166,6 +166,24 @@ export class OrderService {
     if (error) throw error;
   }
 
+    /**
+   * Se suscribe a cambios en tiempo real de órdenes/items (creación, cobro,
+   * cancelación, cambio de estado de cocina) y ejecuta `callback` cuando algo
+   * cambia, sin importar quién lo haya hecho ni desde qué dispositivo.
+   * Devuelve una función para cancelar la suscripción (llamarla en ngOnDestroy).
+   */
+  subscribeToOrderChanges(callback: () => void): () => void {
+    const channel = this.supabase.client
+      .channel('active-orders-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => callback())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_items' }, () => callback())
+      .subscribe();
+
+    return () => {
+      this.supabase.client.removeChannel(channel);
+    };
+  }
+
   async updateKitchenStatus(orderId: string, status: 'pending' | 'preparing' | 'ready') {
     const { error } = await this.supabase.client
       .from('orders')
