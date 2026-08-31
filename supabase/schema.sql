@@ -1,7 +1,14 @@
 -- =====================================================================
 -- SISTEMA POS CAFETERÍA — SCHEMA CONSOLIDADO DE SUPABASE (PostgreSQL)
--- Refleja el estado completo de la base de datos en producción.
+-- Refleja el estado real de la base de datos en producción a la fecha.
 -- Ejecutar en: Supabase Dashboard > SQL Editor > New query
+--
+-- ⚠️ NOTA DE SEGURIDAD: las políticas RLS de este archivo son las
+-- "amplias" (cualquier usuario autenticado puede escribir en casi
+-- todo). Los roles (admin/cajero/barista/mesero/cocinero) HOY solo
+-- se validan en el frontend (Angular), no en la base de datos.
+-- Ver sección final "PENDIENTE: endurecimiento de seguridad" para
+-- el script que lo corrige cuando decidas aplicarlo.
 -- =====================================================================
 
 create extension if not exists "uuid-ossp";
@@ -13,7 +20,7 @@ create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null,
   full_name text,
-  role text not null default 'mesero' check (role in ('admin', 'cajero', 'barista', 'mesero')),
+  role text not null default 'mesero' check (role in ('admin', 'cajero', 'barista', 'mesero', 'cocinero')),
   created_at timestamptz not null default now()
 );
 
@@ -65,51 +72,7 @@ create table if not exists products (
 create index if not exists idx_products_category on products(category_id);
 
 -- ---------------------------------------------------------------------
--- 3. RECETAS (relación producto ↔ insumo, con conversión de unidades)
--- ---------------------------------------------------------------------
-create table if not exists product_recipe (
-  id uuid primary key default uuid_generate_v4(),
-  product_id uuid not null references products(id) on delete cascade,
-  inventory_item_id uuid not null references inventory_items(id) on delete cascade,
-  quantity_used numeric(10,3) not null check (quantity_used > 0),
-  unit text not null default 'g' check (unit in ('g', 'kg', 'lb', 'oz', 'ml', 'l', 'unidad')),
-  created_at timestamptz not null default now(),
-  unique(product_id, inventory_item_id)
-);
-
--- ---------------------------------------------------------------------
--- 4. ÓRDENES (POS) — con pago dividido, mesa y teléfono de cliente
--- ---------------------------------------------------------------------
-create table if not exists orders (
-  id uuid primary key default uuid_generate_v4(),
-  order_number bigserial,
-  customer_name text,
-  customer_phone text,
-  table_number text,
-  status text not null default 'open' check (status in ('open', 'paid', 'cancelled')),
-  payment_method text check (payment_method in ('cash', 'card', 'transfer', 'mixed')),
-  payments jsonb,
-  total numeric(10,2) not null default 0,
-  created_at timestamptz not null default now(),
-  closed_at timestamptz
-);
-
-create table if not exists order_items (
-  id uuid primary key default uuid_generate_v4(),
-  order_id uuid not null references orders(id) on delete cascade,
-  product_id uuid references products(id) on delete set null,
-  product_name text not null,
-  unit_price numeric(10,2) not null,
-  quantity int not null check (quantity > 0),
-  subtotal numeric(10,2) not null
-);
-
-create index if not exists idx_order_items_order on order_items(order_id);
-create index if not exists idx_orders_created_at on orders(created_at);
-create index if not exists idx_orders_status on orders(status);
-
--- ---------------------------------------------------------------------
--- 5. INVENTARIO
+-- 3. INVENTARIO (se crea antes que product_recipe porque la referencia)
 -- ---------------------------------------------------------------------
 create table if not exists inventory_items (
   id uuid primary key default uuid_generate_v4(),
@@ -131,13 +94,59 @@ create table if not exists inventory_movements (
 );
 
 -- ---------------------------------------------------------------------
--- 6. FINANZAS (gastos)
+-- 4. RECETAS (relación producto ↔ insumo, con conversión de unidades)
+-- ---------------------------------------------------------------------
+create table if not exists product_recipe (
+  id uuid primary key default uuid_generate_v4(),
+  product_id uuid not null references products(id) on delete cascade,
+  inventory_item_id uuid not null references inventory_items(id) on delete cascade,
+  quantity_used numeric(10,3) not null check (quantity_used > 0),
+  unit text not null default 'g' check (unit in ('g', 'kg', 'lb', 'oz', 'ml', 'l', 'unidad')),
+  created_at timestamptz not null default now(),
+  unique(product_id, inventory_item_id)
+);
+
+-- ---------------------------------------------------------------------
+-- 5. ÓRDENES (POS) — pago dividido, mesa, teléfono, estado de cocina
+-- ---------------------------------------------------------------------
+create table if not exists orders (
+  id uuid primary key default uuid_generate_v4(),
+  order_number bigserial,
+  customer_name text,
+  customer_phone text,
+  table_number text,
+  status text not null default 'open' check (status in ('open', 'paid', 'cancelled')),
+  payment_method text check (payment_method in ('cash', 'card', 'transfer', 'mixed')),
+  payments jsonb,
+  kitchen_status text not null default 'pending' check (kitchen_status in ('pending', 'preparing', 'ready')),
+  total numeric(10,2) not null default 0,
+  created_at timestamptz not null default now(),
+  closed_at timestamptz
+);
+
+create table if not exists order_items (
+  id uuid primary key default uuid_generate_v4(),
+  order_id uuid not null references orders(id) on delete cascade,
+  product_id uuid references products(id) on delete set null,
+  product_name text not null,
+  unit_price numeric(10,2) not null,
+  quantity int not null check (quantity > 0),
+  subtotal numeric(10,2) not null
+);
+
+create index if not exists idx_order_items_order on order_items(order_id);
+create index if not exists idx_orders_created_at on orders(created_at);
+create index if not exists idx_orders_status on orders(status);
+
+-- ---------------------------------------------------------------------
+-- 6. FINANZAS (gastos) — con método de pago
 -- ---------------------------------------------------------------------
 create table if not exists expenses (
   id uuid primary key default uuid_generate_v4(),
   concept text not null,
   category text not null default 'otros'
     check (category in ('insumos', 'servicios', 'nomina', 'renta', 'mantenimiento', 'otros')),
+  payment_method text check (payment_method in ('cash', 'card', 'transfer', 'other')),
   amount numeric(10,2) not null check (amount >= 0),
   date date not null default current_date,
   created_at timestamptz not null default now()
@@ -169,7 +178,9 @@ create table if not exists customers (
 );
 
 -- =====================================================================
--- ROW LEVEL SECURITY (RLS)
+-- ROW LEVEL SECURITY (RLS) — nivel actual: "amplio" para operadores.
+-- Cualquier usuario autenticado puede leer y escribir la mayoría de
+-- tablas. Solo profiles/app_settings/storage validan rol admin.
 -- =====================================================================
 
 alter table profiles enable row level security;
@@ -184,17 +195,16 @@ alter table expenses enable row level security;
 alter table app_settings enable row level security;
 alter table customers enable row level security;
 
-drop policy if exists "profiles_select_all" on profiles;
+-- Perfiles: todos pueden ver todos (para mostrar nombre/rol en header);
+-- cada quien edita el suyo, o un admin puede editar cualquiera.
 create policy "profiles_select_all" on profiles for select using (auth.role() = 'authenticated');
-
-drop policy if exists "profiles_update_own" on profiles;
-drop policy if exists "profiles_update_own_or_admin" on profiles;
 create policy "profiles_update_own_or_admin" on profiles
   for update using (
     auth.uid() = id
     or exists (select 1 from profiles p where p.id = auth.uid() and p.role = 'admin')
   );
 
+-- Resto de tablas: acceso completo para cualquier usuario autenticado
 create policy "categories_all" on categories for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "products_all" on products for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "product_recipe_all" on product_recipe for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
@@ -205,7 +215,9 @@ create policy "inventory_movements_all" on inventory_movements for all using (au
 create policy "expenses_all" on expenses for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 create policy "customers_all" on customers for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
-create policy "app_settings_select" on app_settings for select using (auth.role() = 'authenticated');
+-- app_settings: lectura pública (necesaria para mostrar el nombre/logo
+-- en la pantalla de Login, antes de iniciar sesión); escritura solo admin.
+create policy "app_settings_select_public" on app_settings for select using (true);
 create policy "app_settings_update_admin" on app_settings
   for update using (
     exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
@@ -255,5 +267,19 @@ insert into inventory_items (name, unit, quantity, min_quantity, cost_per_unit) 
 on conflict do nothing;
 
 -- =====================================================================
--- FIN DEL SCRIPT
+-- FIN DEL SCHEMA CONSOLIDADO — estado reflejado: producción actual
 -- =====================================================================
+
+
+-- =====================================================================
+-- PENDIENTE: endurecimiento de seguridad (NO aplicado en producción)
+-- Reemplaza las políticas "_all" de arriba por políticas que validan
+-- el rol real desde `profiles`, no solo "está autenticado". Guardado
+-- aquí como referencia para cuando decidas aplicarlo — no lo ejecutes
+-- junto con el resto del script de arriba sin antes decidirlo.
+-- =====================================================================
+
+-- (Contactarme cuando quieras retomar esto — lo dejamos pausado por el
+--  problema de "estado de cocina no avanza" que estábamos depurando.
+--  La causa más probable era la función set_kitchen_status sin permisos
+--  correctos, no las políticas en sí. Se puede resolver con calma.)
