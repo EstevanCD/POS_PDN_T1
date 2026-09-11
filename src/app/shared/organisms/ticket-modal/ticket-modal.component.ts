@@ -20,10 +20,21 @@ import { buildTicketText, buildTicketHtml, printTicket, whatsappShareUrl, emailS
           <p class="ticket-modal__cafe">{{ settings.cafeName() }}</p>
           <p class="ticket-modal__meta">Orden #{{ order.order_number }}</p>
           <div class="ticket-modal__items">
-            <div class="ticket-modal__row" *ngFor="let it of order.items">
-              <span>{{ it.quantity }}x {{ it.product_name }}</span>
-              <span>{{ it.subtotal | appCurrency }}</span>
+            <div class="ticket-modal__item-block" *ngFor="let it of order.items">
+              <div class="ticket-modal__row">
+                <span>{{ it.quantity }}x {{ it.product_name }}</span>
+                <span>{{ it.subtotal | appCurrency }}</span>
+              </div>
+              <p class="ticket-modal__note" *ngIf="it.notes">📝 {{ it.notes }}</p>
             </div>
+          </div>
+          <div class="ticket-modal__row" *ngIf="order.discount_type && order.discount_value">
+            <span>Subtotal</span>
+            <span>{{ order.subtotal ?? order.total | appCurrency }}</span>
+          </div>
+          <div class="ticket-modal__row ticket-modal__row--discount" *ngIf="order.discount_type && order.discount_value">
+            <span>Descuento</span>
+            <span>-{{ (order.subtotal ?? order.total) - order.total | appCurrency }}</span>
           </div>
           <div class="ticket-modal__row ticket-modal__row--total">
             <span>Total</span>
@@ -62,6 +73,8 @@ import { buildTicketText, buildTicketHtml, printTicket, whatsappShareUrl, emailS
     .ticket-modal__meta { text-align: center; color: var(--color-text-muted); font-size: var(--fs-xs); margin-bottom: var(--space-2); }
     .ticket-modal__row { display: flex; justify-content: space-between; padding: 2px 0; }
     .ticket-modal__row--total { font-weight: 700; border-top: 1px dashed var(--color-border); margin-top: var(--space-2); padding-top: var(--space-2); }
+    .ticket-modal__row--discount { color: var(--color-success); font-weight: 600; }
+    .ticket-modal__note { font-size: var(--fs-xs); color: var(--color-warning); font-style: italic; margin: 0 0 4px; }
     .ticket-modal__field { margin-bottom: var(--space-3); display: flex; flex-direction: column; gap: 4px; }
     .ticket-modal__field label { font-size: var(--fs-xs); color: var(--color-text-muted); font-weight: 600; }
     .ticket-modal__field input { border: 1.5px solid var(--color-border); border-radius: var(--radius-md); padding: var(--space-2); font-size: var(--fs-sm); }

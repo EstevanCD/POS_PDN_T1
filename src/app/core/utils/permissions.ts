@@ -9,6 +9,7 @@ export type Permission =
   | 'menu:edit'
   | 'inventory:view'
   | 'inventory:edit'
+  | 'recipes:view'
   | 'finance:view'
   | 'finance:edit'
   | 'summary:view'
@@ -19,7 +20,7 @@ export type Permission =
 const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
     'order:create', 'order:view-active', 'order:manage', 'order:mark-ready',
-    'menu:view', 'menu:edit', 'inventory:view', 'inventory:edit',
+    'menu:view', 'menu:edit', 'inventory:view', 'inventory:edit', 'recipes:view',
     'finance:view', 'finance:edit', 'summary:view', 'settings:view',
     'customers:view', 'users:manage',
   ],
@@ -30,13 +31,13 @@ const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
   barista: [
     'order:create', 'order:view-active', 'order:manage', 'order:mark-ready',
-    'menu:view', 'inventory:view', 'inventory:edit',
+    'menu:view', 'recipes:view',
   ],
   mesero: [
     'order:create', 'order:view-active', 'order:manage',
   ],
   cocinero: [
-    'order:view-active', 'order:mark-ready',
+    'order:view-active', 'order:mark-ready', 'recipes:view',
   ],
 };
 

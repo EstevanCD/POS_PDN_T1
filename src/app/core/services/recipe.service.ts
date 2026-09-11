@@ -40,6 +40,26 @@ export class RecipeService {
         return data as RecipeEntry;
     }
 
+        /** Trae todas las recetas del menú de una vez, agrupadas por producto (para la vista de consulta) */
+    async getAllRecipesGrouped(): Promise<Record<string, RecipeEntry[]>> {
+        const { data, error } = await this.supabase.client
+            .from('product_recipe')
+            .select('*, inventory_items(name, unit)');
+        if (error) throw error;
+
+        const grouped: Record<string, RecipeEntry[]> = {};
+        (data as any[]).forEach((r) => {
+            const entry: RecipeEntry = {
+                ...r,
+                inventory_item_name: r.inventory_items?.name,
+                inventory_item_unit: r.inventory_items?.unit,
+            };
+            if (!grouped[r.product_id]) grouped[r.product_id] = [];
+            grouped[r.product_id].push(entry);
+        });
+        return grouped;
+    }
+
     async deleteEntry(id: string) {
         const { error } = await this.supabase.client.from('product_recipe').delete().eq('id', id);
         if (error) throw error;

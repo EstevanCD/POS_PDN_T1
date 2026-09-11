@@ -2,6 +2,7 @@ import { Component, OnInit, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Product, Category } from '../../core/models/product.model';
 import { Order, OrderItem, PaymentSplit } from '../../core/models/order.model';
+import { Discount, calculateDiscountAmount } from '../../core/utils/discount.util';
 import { ProductService } from '../../core/services/product.service';
 import { OrderService } from '../../core/services/order.service';
 import { ProductGridComponent } from '../../shared/organisms/product-grid/product-grid.component';
@@ -50,11 +51,12 @@ import { AppCurrencyPipe } from '../../shared/pipes/app-currency.pipe';
       <div class="order-page__cart" [class.order-page__cart--open]="cartOpen()">
         <app-order-cart
           [items]="cartItems()"
-          [total]="cartTotal()"
+          [total]="cartSubtotal()"
           [submitting]="submitting()"
           [sendingOrder]="sendingOrder()"
           (quantityChange)="onQuantityChange($event)"
           (remove)="removeFromCart($event)"
+          (notesChange)="onNotesChange($event)"
           (checkout)="checkout($event)"
           (sendOrder)="sendOrder($event)"
         ></app-order-cart>
@@ -70,7 +72,7 @@ import { AppCurrencyPipe } from '../../shared/pipes/app-currency.pipe';
       *ngIf="cartItems().length && !cartOpen()"
       (click)="cartOpen.set(true)"
     >
-      🛒 Ver orden · {{ cartItems().length }} · {{ cartTotal() | appCurrency }}
+      🛒 Ver orden · {{ cartItems().length }} · {{ cartSubtotal() | appCurrency }}
     </button>
 
     <app-ticket-modal *ngIf="lastPaidOrder()" [order]="lastPaidOrder()!" (close)="onCloseTicket()"></app-ticket-modal>
@@ -97,7 +99,6 @@ import { AppCurrencyPipe } from '../../shared/pipes/app-currency.pipe';
     @media (max-width: 1024px) {
       .order-page { grid-template-columns: 1fr; }
 
-      /* El carrito se convierte en panel deslizable desde abajo */
       .order-page__cart {
         position: fixed;
         left: 0; right: 0; bottom: 0;
@@ -183,7 +184,7 @@ export class OrderPage implements OnInit {
     });
   }
 
-  cartTotal(): number {
+  cartSubtotal(): number {
     return this.cartItems().reduce((acc, i) => acc + i.subtotal, 0);
   }
 
@@ -221,16 +222,30 @@ export class OrderPage implements OnInit {
     this.cartItems.update((items) => items.filter((i) => i.product_id !== item.product_id));
   }
 
-  async checkout(payload: { payments: PaymentSplit[]; phone: string; table: string }) {
+  onNotesChange(event: { item: OrderItem; notes: string }) {
+    this.cartItems.update((items) =>
+      items.map((i) => (i.product_id === event.item.product_id ? { ...i, notes: event.notes } : i))
+    );
+  }
+
+  async checkout(payload: { payments: PaymentSplit[]; phone: string; table: string; discount: Discount | null }) {
     if (!this.cartItems().length) return;
     this.submitting.set(true);
     try {
+      const subtotal = this.cartSubtotal();
+      const discountAmount = calculateDiscountAmount(subtotal, payload.discount);
+      const finalTotal = Math.max(0, subtotal - discountAmount);
+
       const order: Order = {
         status: 'paid',
         payments: payload.payments,
         customer_phone: payload.phone || undefined,
         table_number: payload.table,
-        total: this.cartTotal(),
+        subtotal,
+        discount_type: payload.discount?.type ?? null,
+        discount_value: payload.discount?.value ?? 0,
+        discount_reason: payload.discount?.reason ?? undefined,
+        total: finalTotal,
         items: this.cartItems(),
         closed_at: new Date().toISOString(),
       };
@@ -247,14 +262,22 @@ export class OrderPage implements OnInit {
     }
   }
 
-  async sendOrder(payload: { table: string }) {
+  async sendOrder(payload: { table: string; discount: Discount | null }) {
     if (!this.cartItems().length) return;
     this.sendingOrder.set(true);
     try {
+      const subtotal = this.cartSubtotal();
+      const discountAmount = calculateDiscountAmount(subtotal, payload.discount);
+      const finalTotal = Math.max(0, subtotal - discountAmount);
+
       const order: Order = {
         status: 'open',
         table_number: payload.table,
-        total: this.cartTotal(),
+        subtotal,
+        discount_type: payload.discount?.type ?? null,
+        discount_value: payload.discount?.value ?? 0,
+        discount_reason: payload.discount?.reason ?? undefined,
+        total: finalTotal,
         items: this.cartItems(),
       };
       await this.orderService.createOrder(order);

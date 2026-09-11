@@ -8,8 +8,15 @@ export function buildTicketText(order: Order, cafeName: string, fmt: (n: number)
     lines.push(`Orden #${order.order_number ?? ''}`);
     lines.push(new Date(order.created_at ?? Date.now()).toLocaleString());
     lines.push('-----------------------------');
-    order.items.forEach((it) => lines.push(`${it.quantity}x ${it.product_name}  ${fmt(it.subtotal)}`));
+    order.items.forEach((it) => {
+        lines.push(`${it.quantity}x ${it.product_name}  ${fmt(it.subtotal)}`);
+        if (it.notes) lines.push(`   📝 ${it.notes}`);
+    });
     lines.push('-----------------------------');
+    if (order.discount_type && order.discount_value) {
+        lines.push(`Subtotal: ${fmt(order.subtotal ?? order.total)}`);
+        lines.push(`Descuento: -${fmt((order.subtotal ?? order.total) - order.total)}`);
+    }
     lines.push(`TOTAL: ${fmt(order.total)}`);
     lines.push(`Pago: ${paymentMethodLabel(order.payment_method)}`);
     lines.push('-----------------------------');
@@ -19,8 +26,17 @@ export function buildTicketText(order: Order, cafeName: string, fmt: (n: number)
 
 export function buildTicketHtml(order: Order, cafeName: string, fmt: (n: number) => string): string {
     const rows = order.items
-        .map((it) => `<tr><td>${it.quantity}x ${it.product_name}</td><td style="text-align:right">${fmt(it.subtotal)}</td></tr>`)
+        .map((it) => {
+            const noteRow = it.notes ? `<tr><td colspan="2" style="font-style:italic;font-size:11px;padding-left:8px;">📝 ${it.notes}</td></tr>` : '';
+            return `<tr><td>${it.quantity}x ${it.product_name}</td><td style="text-align:right">${fmt(it.subtotal)}</td></tr>${noteRow}`;
+        })
         .join('');
+
+    const discountRows = order.discount_type && order.discount_value
+        ? `<tr><td>Subtotal</td><td style="text-align:right">${fmt(order.subtotal ?? order.total)}</td></tr>
+           <tr><td>Descuento</td><td style="text-align:right">-${fmt((order.subtotal ?? order.total) - order.total)}</td></tr>`
+        : '';
+
     return `<html><head><meta charset="utf-8"/><title>Ticket</title>
     <style>
       body { font-family: monospace; width: 280px; margin: 0 auto; padding: 16px; }
@@ -35,7 +51,7 @@ export function buildTicketHtml(order: Order, cafeName: string, fmt: (n: number)
       <h2>${cafeName}</h2>
       <p class="center">Orden #${order.order_number ?? ''}<br/>${new Date(order.created_at ?? Date.now()).toLocaleString()}</p>
       <hr/><table>${rows}</table><hr/>
-      <table><tr class="total"><td>TOTAL</td><td style="text-align:right">${fmt(order.total)}</td></tr></table>
+      <table>${discountRows}<tr class="total"><td>TOTAL</td><td style="text-align:right">${fmt(order.total)}</td></tr></table>
       <p class="center">Pago: ${paymentMethodLabel(order.payment_method)}</p><hr/>
       <p class="center">¡Gracias por tu compra!</p>
     </body></html>`;

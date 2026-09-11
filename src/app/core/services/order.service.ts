@@ -2,7 +2,8 @@ import { Injectable } from '@angular/core';
 import { SupabaseService } from './supabase.service';
 import { RecipeService } from './recipe.service';
 import { OfflineQueueService } from './offline-queue.service';
-import { Order, OrderItem, PaymentMethod, PaymentSplit } from '../models/order.model';
+import { Order, OrderItem, PaymentSplit } from '../models/order.model';
+import { Discount, calculateDiscountAmount } from '../utils/discount.util';
 import { convertUnit } from '../utils/unit-conversion';
 
 @Injectable({ providedIn: 'root' })
@@ -37,12 +38,18 @@ export class OrderService {
       ? 'mixed'
       : header.payments?.[0]?.method ?? header.payment_method ?? null;
 
+    const subtotal = header.subtotal ?? items.reduce((acc, i) => acc + i.subtotal, 0);
+
     const { data: orderRow, error: orderError } = await this.supabase.client
       .from('orders')
       .insert({
         status: header.status,
         payment_method: paymentMethodSummary,
         payments: header.payments ?? null,
+        subtotal,
+        discount_type: header.discount_type ?? null,
+        discount_value: header.discount_value ?? 0,
+        discount_reason: header.discount_reason ?? null,
         total: header.total,
         customer_name: header.customer_name ?? null,
         customer_phone: header.customer_phone ?? null,
@@ -60,6 +67,7 @@ export class OrderService {
       unit_price: it.unit_price,
       quantity: it.quantity,
       subtotal: it.subtotal,
+      notes: it.notes ?? null,
     }));
 
     const { error: itemsError } = await this.supabase.client.from('order_items').insert(itemsPayload);
@@ -86,7 +94,10 @@ export class OrderService {
     }
   }
 
-  /** Agrega productos a una orden abierta que ya existía (ej. la mesa pide algo más) */
+  /**
+   * Agrega productos a una orden abierta que ya existía (ej. la mesa pide algo más).
+   * Si la orden ya tenía un descuento, se recalcula sobre el nuevo subtotal.
+   */
   async addItemsToOrder(order: Order, newItems: OrderItem[]) {
     if (!order.id || !newItems.length) return;
 
@@ -97,17 +108,55 @@ export class OrderService {
       unit_price: it.unit_price,
       quantity: it.quantity,
       subtotal: it.subtotal,
+      notes: it.notes ?? null,
     }));
 
     const { error: itemsError } = await this.supabase.client.from('order_items').insert(itemsPayload);
     if (itemsError) throw itemsError;
 
     const addedTotal = newItems.reduce((acc, i) => acc + i.subtotal, 0);
-    const newTotal = order.total + addedTotal;
+    const currentSubtotal = order.subtotal ?? order.total;
+    const newSubtotal = currentSubtotal + addedTotal;
+
+    const discount: Discount | null = order.discount_type
+      ? { type: order.discount_type, value: order.discount_value ?? 0, reason: order.discount_reason ?? '' }
+      : null;
+    const discountAmount = calculateDiscountAmount(newSubtotal, discount);
+    const newTotal = Math.max(0, newSubtotal - discountAmount);
 
     const { error: updateError } = await this.supabase.client
       .from('orders')
-      .update({ total: newTotal })
+      .update({ subtotal: newSubtotal, total: newTotal })
+      .eq('id', order.id);
+    if (updateError) throw updateError;
+  }
+
+  /**
+   * Quita un solo producto de una orden abierta (ej. el cliente ya no lo quiere).
+   * Recalcula subtotal y total (respetando el descuento vigente, si lo hay).
+   * No permite dejar la orden sin ningún producto — para eso se cancela la orden completa.
+   */
+  async removeItemFromOrder(order: Order, item: OrderItem) {
+    if (!item.id) return;
+    if (order.items.length <= 1) {
+      throw new Error('No puedes quitar el último producto. Cancela la orden completa en su lugar.');
+    }
+
+    const { error: delError } = await this.supabase.client.from('order_items').delete().eq('id', item.id);
+    if (delError) throw delError;
+
+    const currentSubtotal = order.subtotal ?? order.total;
+    const newSubtotal = Math.max(0, currentSubtotal - item.subtotal);
+
+    const discount: Discount | null = order.discount_type
+      ? { type: order.discount_type, value: order.discount_value ?? 0, reason: order.discount_reason ?? '' }
+      : null;
+    const discountAmount = calculateDiscountAmount(newSubtotal, discount);
+    const newTotal = Math.max(0, newSubtotal - discountAmount);
+
+    const { error: updateError } = await this.supabase.client
+      .from('orders')
+      .update({ subtotal: newSubtotal, total: newTotal })
       .eq('id', order.id);
     if (updateError) throw updateError;
   }
@@ -121,6 +170,10 @@ export class OrderService {
         status: 'paid',
         payment_method: paymentMethodSummary,
         payments,
+        discount_type: order.discount_type ?? null,
+        discount_value: order.discount_value ?? 0,
+        discount_reason: order.discount_reason ?? null,
+        total: order.total,
         customer_phone: customerPhone ?? order.customer_phone ?? null,
         closed_at: new Date().toISOString(),
       })
@@ -128,6 +181,25 @@ export class OrderService {
     if (error) throw error;
 
     await this.deductInventoryForItems(order.items);
+  }
+
+  /** Aplica (o quita) un descuento a una orden abierta, antes de cobrarla */
+  async applyDiscountToOrder(order: Order, discount: Discount | null) {
+    if (!order.id) return;
+    const subtotal = order.subtotal ?? order.total;
+    const discountAmount = calculateDiscountAmount(subtotal, discount);
+    const newTotal = Math.max(0, subtotal - discountAmount);
+
+    const { error } = await this.supabase.client
+      .from('orders')
+      .update({
+        discount_type: discount?.type ?? null,
+        discount_value: discount?.value ?? 0,
+        discount_reason: discount?.reason ?? null,
+        total: newTotal,
+      })
+      .eq('id', order.id);
+    if (error) throw error;
   }
 
   async getOpenOrders(): Promise<Order[]> {
@@ -166,12 +238,6 @@ export class OrderService {
     if (error) throw error;
   }
 
-    /**
-   * Se suscribe a cambios en tiempo real de órdenes/items (creación, cobro,
-   * cancelación, cambio de estado de cocina) y ejecuta `callback` cuando algo
-   * cambia, sin importar quién lo haya hecho ni desde qué dispositivo.
-   * Devuelve una función para cancelar la suscripción (llamarla en ngOnDestroy).
-   */
   subscribeToOrderChanges(callback: () => void): () => void {
     const channel = this.supabase.client
       .channel('active-orders-changes')

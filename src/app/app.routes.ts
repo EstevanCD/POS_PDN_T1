@@ -33,6 +33,12 @@ export const routes: Routes = [
         canActivate: [permissionGuard('menu:view')],
         title: 'Menú',
       },
+            {
+        path: 'recipes',
+        loadComponent: () => import('./pages/recipes/recipes.page').then((m) => m.RecipesPage),
+        canActivate: [permissionGuard('recipes:view')],
+        title: 'Recetas',
+      },
       {
         path: 'inventory',
         loadComponent: () => import('./pages/inventory/inventory.page').then((m) => m.InventoryPage),

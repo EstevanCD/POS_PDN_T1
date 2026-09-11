@@ -1,5 +1,6 @@
 export type OrderStatus = 'open' | 'paid' | 'cancelled';
 export type PaymentMethod = 'cash' | 'card' | 'transfer';
+export type DiscountType = 'percentage' | 'fixed';
 
 export interface PaymentSplit {
   method: PaymentMethod;
@@ -14,6 +15,7 @@ export interface OrderItem {
   unit_price: number;
   quantity: number;
   subtotal: number;
+  notes?: string;
 }
 
 export type KitchenStatus = 'pending' | 'preparing' | 'ready';
@@ -28,6 +30,10 @@ export interface Order {
   kitchen_status?: KitchenStatus;
   payment_method?: PaymentMethod | 'mixed';
   payments?: PaymentSplit[];
+  subtotal?: number;
+  discount_type?: DiscountType | null;
+  discount_value?: number;
+  discount_reason?: string;
   total: number;
   items: OrderItem[];
   created_at?: string;

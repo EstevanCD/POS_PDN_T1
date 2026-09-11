@@ -15,6 +15,7 @@ import { hasPermission, Permission } from '../../../core/utils/permissions';
         <app-nav-item route="/active-orders" icon="🕐" label="Órdenes activas"></app-nav-item>
         <app-nav-item *ngIf="can('menu:view')" route="/menu" icon="📋" label="Menú"></app-nav-item>
         <app-nav-item *ngIf="can('inventory:view')" route="/inventory" icon="📦" label="Inventario"></app-nav-item>
+        <app-nav-item *ngIf="can('recipes:view')" route="/recipes" icon="🧪" label="Recetas"></app-nav-item>
         <app-nav-item *ngIf="can('finance:view')" route="/finance" icon="💰" label="Finanzas"></app-nav-item>
         <app-nav-item *ngIf="can('summary:view')" route="/daily-summary" icon="📅" label="Resumen diario"></app-nav-item>
         <app-nav-item *ngIf="can('summary:view')" route="/summary" icon="📈" label="Resumen mensual"></app-nav-item>
