@@ -9,6 +9,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/login/login.page').then((m) => m.LoginPage),
   },
   {
+    path: 'reset-password',
+    loadComponent: () => import('./pages/reset-password/reset-password.page').then((m) => m.ResetPasswordPage),
+  },
+  {
     path: '',
     loadComponent: () =>
       import('./shared/templates/main-layout/main-layout.component').then((m) => m.MainLayoutComponent),
@@ -33,7 +37,7 @@ export const routes: Routes = [
         canActivate: [permissionGuard('menu:view')],
         title: 'Menú',
       },
-            {
+      {
         path: 'recipes',
         loadComponent: () => import('./pages/recipes/recipes.page').then((m) => m.RecipesPage),
         canActivate: [permissionGuard('recipes:view')],
@@ -74,6 +78,23 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/settings/settings.page').then((m) => m.SettingsPage),
         canActivate: [adminGuard],
         title: 'Configuración',
+      },
+      {
+        path: 'feria-order',
+        loadComponent: () => import('./pages/feria-order/feria-order.page').then((m) => m.FeriaOrderPage),
+        canActivate: [permissionGuard('feria:order')],
+        title: 'Tomar orden — Ferias',
+      },
+      {
+        path: 'feria-sales',
+        loadComponent: () => import('./pages/feria-sales/feria-sales.page').then((m) => m.FeriaSalesPage),
+        canActivate: [permissionGuard('feria:sales')],
+        title: 'Ventas — Ferias',
+      },
+      {
+        path: 'no-access',
+        loadComponent: () => import('./pages/no-access/no-access.page').then((m) => m.NoAccessPage),
+        title: 'Sin acceso',
       },
     ],
   },

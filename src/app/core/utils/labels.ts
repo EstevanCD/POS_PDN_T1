@@ -21,6 +21,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   barista: 'Barista',
   mesero: 'Mesero',
   cocinero: 'Cocinero',
+  cafeferias: 'Café Ferias',
 };
 
 export function roleLabel(role?: string | null): string {

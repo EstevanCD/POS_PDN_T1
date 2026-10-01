@@ -136,6 +136,25 @@ export class AuthService {
       },
     });
   }
+    /**
+   * Envía un correo con un enlace para restablecer la contraseña.
+   * `redirectTo` debe coincidir con una URL agregada en
+   * Supabase → Authentication → URL Configuration → Redirect URLs.
+   */
+  async sendPasswordResetEmail(email: string) {
+    return this.supabase.client.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+  }
+
+  /**
+   * Actualiza la contraseña del usuario. Solo funciona si la sesión
+   * actual proviene de un enlace de recuperación válido (Supabase
+   * autentica temporalmente al usuario al abrir ese enlace).
+   */
+  async updatePassword(newPassword: string) {
+    return this.supabase.client.auth.updateUser({ password: newPassword });
+  }
 
   /**
    * Cierre de sesión. Limpia el estado local y redirige a /login

@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'cajero' | 'barista' | 'mesero' | 'cocinero';
+export type UserRole = 'admin' | 'cajero' | 'barista' | 'mesero' | 'cocinero' | 'cafeferias';
 
 export interface Profile {
   id: string;

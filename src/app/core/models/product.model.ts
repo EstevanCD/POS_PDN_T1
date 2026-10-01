@@ -3,6 +3,7 @@ export interface Category {
   name: string;
   icon?: string;
   sort_order?: number;
+  is_feria?: boolean;
 }
 
 export interface Product {

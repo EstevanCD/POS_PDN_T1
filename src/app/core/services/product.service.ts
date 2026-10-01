@@ -4,7 +4,7 @@ import { Category, Product } from '../models/product.model';
 
 @Injectable({ providedIn: 'root' })
 export class ProductService {
-  constructor(private supabase: SupabaseService) {}
+  constructor(private supabase: SupabaseService) { }
 
   async getCategories(): Promise<Category[]> {
     const { data, error } = await this.supabase.client
@@ -38,6 +38,17 @@ export class ProductService {
       .order('name', { ascending: true });
     if (error) throw error;
     return (data as any[]).map((p) => ({ ...p, category_name: p.categories?.name })) as Product[];
+  }
+
+  /** Categorías marcadas como "Café Ferias" (para la pantalla de toma de pedidos en ferias) */
+  async getFeriaCategories(): Promise<Category[]> {
+    const { data, error } = await this.supabase.client
+      .from('categories')
+      .select('*')
+      .eq('is_feria', true)
+      .order('sort_order', { ascending: true });
+    if (error) throw error;
+    return data as Category[];
   }
 
   async createProduct(product: Partial<Product>) {

@@ -20,6 +20,8 @@ import { hasPermission, Permission } from '../../../core/utils/permissions';
         <app-nav-item *ngIf="can('summary:view')" route="/daily-summary" icon="📅" label="Resumen diario"></app-nav-item>
         <app-nav-item *ngIf="can('summary:view')" route="/summary" icon="📈" label="Resumen mensual"></app-nav-item>
         <app-nav-item *ngIf="can('customers:view')" route="/customers" icon="🎁" label="Clientes"></app-nav-item>
+        <app-nav-item *ngIf="can('feria:order')" route="/feria-order" icon="🎪" label="Orden Ferias"></app-nav-item>
+        <app-nav-item *ngIf="can('feria:sales')" route="/feria-sales" icon="📊" label="Ventas Ferias"></app-nav-item>
         <app-nav-item *ngIf="can('settings:view')" route="/settings" icon="⚙️" label="Configuración"></app-nav-item>
       </nav>
     </aside>

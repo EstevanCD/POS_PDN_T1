@@ -54,6 +54,7 @@ export class OrderService {
         customer_name: header.customer_name ?? null,
         customer_phone: header.customer_phone ?? null,
         table_number: header.table_number ?? null,
+        channel: header.channel ?? 'pos',
         closed_at: header.status === 'paid' ? new Date().toISOString() : null,
       })
       .select()
@@ -216,6 +217,20 @@ export class OrderService {
     const { data, error } = await this.supabase.client
       .from('orders')
       .select('*, order_items(*)')
+      .gte('created_at', startISO)
+      .lte('created_at', endISO)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data as any[]).map((o) => ({ ...o, items: o.order_items })) as Order[];
+  }
+
+  /** Ventas del canal "feria" (pantalla de ventas exclusiva del rol Café Ferias) */
+  async getFeriaSalesBetween(startISO: string, endISO: string): Promise<Order[]> {
+    const { data, error } = await this.supabase.client
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('channel', 'feria')
+      .eq('status', 'paid')
       .gte('created_at', startISO)
       .lte('created_at', endISO)
       .order('created_at', { ascending: false });

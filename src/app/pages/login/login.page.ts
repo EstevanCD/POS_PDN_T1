@@ -29,9 +29,12 @@ import { SettingsService } from '../../core/services/settings.service';
   <span *ngIf="!settings.logoUrl()">☕</span>
 </div>
           <h1>{{ settings.cafeName() }} - POS</h1>
-          <p>{{ mode() === 'signin' ? 'Inicia sesión para continuar' : 'Crea tu cuenta de administrador' }}</p>
+          <p *ngIf="mode() === 'signin'">Inicia sesión para continuar</p>
+          <p *ngIf="mode() === 'signup'">Crea tu cuenta de administrador</p>
+          <p *ngIf="mode() === 'reset'">Te enviaremos un enlace para restablecerla</p>
         </div>
-        <form (ngSubmit)="submit()" class="login__form">
+
+        <form *ngIf="mode() !== 'reset'" (ngSubmit)="submit()" class="login__form">
           <app-input
             *ngIf="mode() === 'signup'"
             label="Nombre completo"
@@ -59,6 +62,25 @@ import { SettingsService } from '../../core/services/settings.service';
             {{ mode() === 'signin' ? 'Entrar' : 'Registrarme' }}
           </app-button>
         </form>
+
+        <form *ngIf="mode() === 'reset'" (ngSubmit)="submitReset()" class="login__form">
+          <app-input
+            label="Correo electrónico"
+            type="email"
+            placeholder="tucorreo@cafeteria.com"
+            [(ngModel)]="email"
+            name="resetEmail"
+          ></app-input>
+          <p class="login__error" *ngIf="error()">⚠️ {{ error() }}</p>
+          <p class="login__success" *ngIf="success()">✅ {{ success() }}</p>
+          <app-button type="submit" [full]="true" size="lg" [loading]="loading()">
+            Enviar enlace de recuperación
+          </app-button>
+        </form>
+
+        <button class="login__toggle" *ngIf="mode() === 'signin'" (click)="setMode('reset')">
+          ¿Olvidaste tu contraseña?
+        </button>
         <button class="login__toggle" (click)="toggleMode()">
           {{ mode() === 'signin' ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión' }}
         </button>
@@ -178,7 +200,7 @@ import { SettingsService } from '../../core/services/settings.service';
   `],
 })
 export class LoginPage {
-  mode = signal<'signin' | 'signup'>('signin');
+  mode = signal<'signin' | 'signup' | 'reset'>('signin');
   email = '';
   password = '';
   fullName = '';
@@ -186,11 +208,19 @@ export class LoginPage {
   error = signal<string | null>(null);
   success = signal<string | null>(null);
   constructor(private auth: AuthService, private router: Router, public settings: SettingsService) { }
-  toggleMode() {
-    this.mode.set(this.mode() === 'signin' ? 'signup' : 'signin');
+
+  setMode(mode: 'signin' | 'signup' | 'reset') {
+    this.mode.set(mode);
     this.error.set(null);
     this.success.set(null);
   }
+
+  toggleMode() {
+    this.mode.set(this.mode() === 'signup' ? 'signin' : 'signup');
+    this.error.set(null);
+    this.success.set(null);
+  }
+
   async submit() {
     if (!this.email || !this.password) return;
     this.loading.set(true);
@@ -214,5 +244,24 @@ export class LoginPage {
       this.success.set('Cuenta creada. Revisa tu correo para confirmar y luego inicia sesión.');
       this.mode.set('signin');
     }
+  }
+
+  async submitReset() {
+    if (!this.email) {
+      this.error.set('Escribe tu correo electrónico.');
+      return;
+    }
+    this.loading.set(true);
+    this.error.set(null);
+    this.success.set(null);
+
+    const { error } = await this.auth.sendPasswordResetEmail(this.email);
+    this.loading.set(false);
+
+    if (error) {
+      this.error.set(error.message);
+      return;
+    }
+    this.success.set('Si el correo existe, te enviamos un enlace para restablecer tu contraseña.');
   }
 }

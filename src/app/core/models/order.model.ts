@@ -26,6 +26,7 @@ export interface Order {
   customer_name?: string;
   customer_phone?: string;
   table_number?: string;
+  channel?: 'pos' | 'feria';
   status: OrderStatus;
   kitchen_status?: KitchenStatus;
   payment_method?: PaymentMethod | 'mixed';
